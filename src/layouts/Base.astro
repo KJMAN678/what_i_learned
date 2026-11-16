@@ -1,0 +1,44 @@
+---
+import { url } from '../lib/url';
+interface Props { title: string }
+const { title } = Astro.props;
+---
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <slot name="head" />
+  </head>
+  <body>
+    <header>
+      <a class="site" href={url('')}>What I Learned</a>
+      <nav><a href={url('')}>一覧</a><a href={url('recent/')}>この1ヶ月</a></nav>
+    </header>
+    <main><slot /></main>
+  </body>
+</html>
+<style is:global>
+  :root {
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --link: #0969da; --border: #d1d9e0; --chip: #f0f3f6;
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --link: #4493f8; --border: #3d444d; --chip: #212830; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0 auto; max-width: 760px; padding: 0 16px 48px;
+    background: var(--bg); color: var(--fg);
+    font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; line-height: 1.7;
+  }
+  a { color: var(--link); }
+  header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; padding: 16px 0; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+  header .site { font-weight: 700; color: var(--fg); text-decoration: none; }
+  header nav { display: flex; gap: 16px; }
+  h2 { border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+  .tags { display: inline-flex; flex-wrap: wrap; gap: 6px; padding: 0; margin: 0; list-style: none; }
+  .tags a { display: inline-block; padding: 0 8px; border-radius: 999px; background: var(--chip); font-size: 0.85em; text-decoration: none; }
+  .muted { color: var(--muted); }
+</style>

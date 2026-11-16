@@ -1,0 +1,26 @@
+---
+import { render, type CollectionEntry } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import { getWeeklies } from '../../lib/weekly';
+import { tagSlug, weekSunday } from '../../lib/week-logic';
+import { url } from '../../lib/url';
+
+export async function getStaticPaths() {
+  return (await getWeeklies()).map((entry) => ({ params: { id: entry.id }, props: { entry } }));
+}
+interface Props { entry: CollectionEntry<'weekly'> }
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+const ymd = (d: string) => d.replaceAll('-', '/');
+const title = `${ymd(entry.id)}〜${ymd(weekSunday(entry.id))} の週`;
+---
+<Base title={`${title} | What I Learned`}>
+  <article data-pagefind-body>
+    <h1>{title}</h1>
+    {entry.data.summary && <p class="muted">{entry.data.summary}</p>}
+    <ul class="tags">
+      {entry.data.tags.map((t) => <li><a href={url(`tags/${tagSlug(t)}/`)}>{t}</a></li>)}
+    </ul>
+    <Content />
+  </article>
+</Base>

@@ -1,0 +1,25 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import WeeklyList from '../../components/WeeklyList.astro';
+import { getWeeklies } from '../../lib/weekly';
+import { tagSlug } from '../../lib/week-logic';
+
+export async function getStaticPaths() {
+  const byTag = new Map<string, { label: string; weeklies: CollectionEntry<'weekly'>[] }>();
+  for (const w of await getWeeklies()) {
+    for (const t of w.data.tags) {
+      const g = byTag.get(tagSlug(t)) ?? { label: t, weeklies: [] };
+      if (!g.weeklies.includes(w)) g.weeklies.push(w);
+      byTag.set(tagSlug(t), g);
+    }
+  }
+  return [...byTag].map(([tag, props]) => ({ params: { tag }, props }));
+}
+interface Props { label: string; weeklies: CollectionEntry<'weekly'>[] }
+const { label, weeklies } = Astro.props;
+---
+<Base title={`#${label} | What I Learned`}>
+  <h1>#{label}</h1>
+  <WeeklyList weeklies={weeklies} />
+</Base>

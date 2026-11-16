@@ -1,0 +1,29 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { groupByFiscalYear, tagSlug, weekSunday } from '../lib/week-logic';
+import { url } from '../lib/url';
+interface Props { weeklies: CollectionEntry<'weekly'>[] }
+const groups = groupByFiscalYear(Astro.props.weeklies);
+const md = (d: string) => d.slice(5).replace('-', '/');
+---
+{groups.map(([fy, items]) => (
+  <section>
+    <h2>{fy}年度</h2>
+    <ul class="weeks">
+      {items.map((w) => (
+        <li>
+          <a href={url(`weekly/${w.id}/`)}>{md(w.id)}〜{md(weekSunday(w.id))}</a>
+          {w.data.summary && <span> {w.data.summary}</span>}
+          <ul class="tags">
+            {w.data.tags.map((t) => <li><a href={url(`tags/${tagSlug(t)}/`)}>{t}</a></li>)}
+          </ul>
+        </li>
+      ))}
+    </ul>
+  </section>
+))}
+<style>
+  .weeks { list-style: none; padding: 0; }
+  .weeks > li { padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .weeks .tags { margin-left: 8px; }
+</style>
