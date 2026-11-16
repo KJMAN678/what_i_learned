@@ -1,104 +1,124 @@
-# 学んだことの記録サイト Implementation Plan
+# 学んだことの記録サイト（日報/週報版） Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** `records/YYYY-MM-DD.md` に書いた1日分の記録を、年度別一覧・詳細・タグ・全文検索・直近30日ページを持つ静的サイトとして GitHub Pages に公開する。
+**Goal:** 非公開扱いの日報（`daily/`）から `/weekly` スキルで週報（`weekly/`）を作り、週報だけを年度別一覧・詳細・タグ・全文検索・直近4週ページを持つ静的サイトとして GitHub Pages に公開する。週報は手元の Claude Code でも、Actions の手動実行（結果は PR）でも作れる。
 
-**Architecture:** Astro の Content Collection（glob loader）で `records/` を読み、Zod スキーマとファイル名チェックで書式を厳しく検証する。日付・年度・タグ・30日集計の計算は `src/lib/records-logic.ts` の純粋関数に集め、Node 標準のテストで検証する。ビルド後に Pagefind で検索索引を作り、GitHub Actions で Pages に公開する。
+**Architecture:** Astro の Content Collection（glob loader）で `weekly/` だけを読み、Zod スキーマとファイル名チェックで書式を厳しく検証する。週・年度・タグ・4週集計の計算は `src/lib/week-logic.ts` の純粋関数に集め、Node 標準のテストで検証する。対象週の計算は `scripts/week.ts` として CLI 化し、スキルと Actions の両方から使う。ビルド後に Pagefind で索引を作り、`deploy.yml` で公開する。`weekly.yml` は `anthropics/claude-code-action` で `/weekly` を実行し、`gh pr create` で PR にする。
 
-**Tech Stack:** Astro（インストール時点の最新安定版）、Pagefind、Node 24（`node --test` と型ストリップで TS テストを実行）、GitHub Actions（`withastro/action` + `actions/deploy-pages`）
+**Tech Stack:** Astro（インストール時点の最新安定版）、Pagefind、Node 24（`node --test` と型ストリップで TS を直接実行）、GitHub Actions（`withastro/action`、`actions/deploy-pages`、`anthropics/claude-code-action`、`gh` CLI）
 
 **Spec:** `docs/superpowers/specs/2026-11-15-what-i-learned-site-design.md`
 
 ## Global Constraints
 
 - 公開 URL: `https://kjman678.github.io/what_i_learned/`。`astro.config.mjs` は `site: 'https://kjman678.github.io'`、`base: '/what_i_learned'`。
-- 記録の置き場所: リポジトリ直下 `records/YYYY-MM-DD.md`。ファイル名が日付。frontmatter に日付は書かない。
-- frontmatter: `tags`（文字列配列、1個以上必須）、`summary`（文字列、任意）。
-- 書式違反（`tags` なし/空、ファイル名が `YYYY-MM-DD` でない、実在しない日付、YAML 破損）はビルドを失敗させる。
-- 年度は4月始まり（4〜12月はその年、1〜3月は前年）。
-- 「この1ヶ月」= 今日（Asia/Tokyo）を含む直近30日間。ブラウザ側で集計する。
+- サイトの対象は `weekly/` だけ。`daily/` は Astro から一切読まない。
+- 週報: `weekly/YYYY-MM-DD.md`、ファイル名はその週の月曜の日付。frontmatter は `tags`（文字列配列、1個以上必須）と `summary`（文字列、任意）。
+- 書式違反（`tags` なし/空、ファイル名が `YYYY-MM-DD` でない、実在しない日付、月曜でない、YAML 破損）はビルドを失敗させる。
+- 週は月曜〜日曜、タイムゾーン Asia/Tokyo。年度は4月始まりで、週の月曜の日付で決める。
+- 「この1ヶ月」= 今週を含む直近4週（今週の月曜〜その3週前の月曜）。ブラウザ側で集計する。
 - UI フレームワーク・CSS ライブラリは入れない。素の CSS、ライト/ダーク両対応、`<html lang="ja">`。
-- 依存の追加は `astro` と `pagefind` のみ。テストは `node --test`（追加のテストランナーなし）。
+- npm 依存の追加は `astro` と `pagefind` のみ。テストは `node --test`。
 - サイト内リンクはすべて `base` 付き（`/what_i_learned/...`）。
+- Actions の週報は必ず PR にする。`main` に直接コミットしない。認証 Secret 名は `CLAUDE_CODE_OAUTH_TOKEN`。
 
 ## Review Focus
 
-1. **1〜3月の記録** — 前年度に入る（2026-03-31 は 2025年度、2026-04-01 は 2026年度）。→ Task 1 のテスト。
-2. **30日の境界とタイムゾーン** — 今日と29日前は含み、30日前と未来日は含まない。「今日」は JST。→ Task 1 のテスト。
-3. **記号・日本語・大小違いのタグ** — `C#` / `C++` / `C` / `CI/CD` / `猫見守り` が衝突しない URL になり、`AWS` と `aws` は同じタグページにまとまる。→ Task 1 のテスト。
-4. **実在しない日付のファイル名** — `2026-02-30.md` や `2026-11-5.md` でビルドが失敗する。→ Task 1 のテスト + Task 2 の確認。
-5. **base 抜けのリンク** — `/records/...` や `/tags/...` のように base なしのリンクが1つも出力されない。→ Task 3 の確認。
+1. **日報の漏れ** — `daily/` の文章が `dist/` に1文字も出ない。→ Task 3 の確認。
+2. **年度・週の境界** — 月曜 2026-03-30 の週は 2025年度。日曜 2026-11-15 の月曜は 2026-11-09。→ Task 1 のテスト。
+3. **対象週の既定値** — 引数なしで実行したとき、今日が月曜でも日曜でも「直前に終わった週」になる（2026-11-16(月) → 11/09〜11/15、2026-11-15(日) → 11/02〜11/08）。→ Task 1 のテスト。
+4. **記号・日本語・大小違いのタグ** — `C#` / `C++` / `C` / `CI/CD` / `猫見守り` が衝突しない URL になり、`AWS` と `aws` が同じタグページにまとまる。→ Task 1 のテスト。
+5. **日報がない週・週報が既にある週** — `/weekly` も Actions も週報を作らず、理由を出して止まる（Actions は失敗扱いで PR を作らない）。→ Task 6 と Task 7 の確認。
 
 ---
 
-### Task 1: プロジェクト骨組みと記録ロジック
+### Task 1: プロジェクト骨組みと週ロジック
 
 **Files:**
 - Create: `package.json`, `astro.config.mjs`, `tsconfig.json`, `.gitignore`
-- Create: `src/lib/records-logic.ts`
-- Test: `src/lib/records-logic.test.ts`
+- Create: `src/lib/week-logic.ts`
+- Create: `scripts/week.ts`
+- Test: `src/lib/week-logic.test.ts`
 
 **Interfaces:**
-- Produces（すべて `src/lib/records-logic.ts` から export）:
-  - `type RecordSummary = { id: string; tags: string[]; summary?: string }` — `id` は `YYYY-MM-DD`
-  - `isValidRecordId(id: string): boolean`
-  - `fiscalYear(id: string): number`
-  - `groupByFiscalYear<T extends { id: string }>(records: T[]): [number, T[]][]` — 年度降順、各年度内は `id` 降順
+- Produces（すべて `src/lib/week-logic.ts` から export。日付はすべて `YYYY-MM-DD` 文字列）:
+  - `isValidDate(s: string): boolean` — 形式と実在
+  - `isValidWeekId(id: string): boolean` — `isValidDate` かつ月曜
+  - `addDays(date: string, n: number): string`
+  - `weekMonday(date: string): string`
+  - `weekSunday(monday: string): string`
+  - `targetWeek(arg: string | undefined, today: string): { monday: string; sunday: string }` — `arg` があればその日を含む週、なければ直前に終わった週。`arg` が不正な日付なら `Error('Invalid date: <arg>')`
+  - `fiscalYear(monday: string): number`
+  - `groupByFiscalYear<T extends { id: string }>(items: T[]): [number, T[]][]` — 年度降順、各年度内は `id` 降順
   - `tagSlug(tag: string): string`
-  - `countRecent(records: { id: string; tags: string[] }[], today: string, days?: number): { recordedDays: number; tags: [string, number][] }` — `days` 既定 30。`tags` は回数降順、同数は表記の昇順。表示名は最初に見つかった表記
-  - `todayInTokyo(now?: Date): string` — `YYYY-MM-DD`
+  - `countRecent(weeks: { id: string; tags: string[] }[], today: string, n?: number): { writtenWeeks: number; tags: [string, number][] }` — `n` 既定 4。`tags` は回数降順、同数は表記昇順。表示名は最初に見つかった表記
+  - `todayInTokyo(now?: Date): string`
+- `scripts/week.ts`: `node scripts/week.ts [date]` → 標準出力に `<monday> <sunday>` を1行。不正な日付なら stderr にメッセージ、終了コード 1
 - npm scripts: `"dev": "astro dev"`, `"build": "astro build && pagefind --site dist"`, `"preview": "astro preview"`, `"test": "node --test src/lib/*.test.ts"`, `"check": "npm test && npm run build"`
 
 - [ ] **Step 1: 骨組みを作る**
 
-`package.json`（`"type": "module"`、上の scripts）を書き、`npm install astro` と `npm install -D pagefind`。`tsconfig.json` は `{"extends": "astro/tsconfigs/strict"}`。`astro.config.mjs` に Global Constraints の `site` と `base`。`.gitignore` は `node_modules/`, `dist/`, `.astro/`。
+`package.json`（`"type": "module"`、上の scripts）。`npm install astro`、`npm install -D pagefind`。`tsconfig.json` は `{"extends": "astro/tsconfigs/strict"}`。`astro.config.mjs` に `site` と `base`。`.gitignore` は `node_modules/`, `dist/`, `.astro/`。
 
 - [ ] **Step 2: 失敗するテストを書く**
 
 ```ts
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isValidRecordId, fiscalYear, groupByFiscalYear, tagSlug, countRecent, todayInTokyo } from './records-logic.ts';
+import { isValidDate, isValidWeekId, weekMonday, weekSunday, targetWeek, fiscalYear,
+  groupByFiscalYear, tagSlug, countRecent, todayInTokyo } from './week-logic.ts';
 
-test('isValidRecordId', () => {
-  assert.equal(isValidRecordId('2026-11-15'), true);
-  assert.equal(isValidRecordId('2024-02-29'), true);
-  assert.equal(isValidRecordId('2026-02-30'), false);
-  assert.equal(isValidRecordId('2026-11-5'), false);
-  assert.equal(isValidRecordId('memo'), false);
+test('isValidDate / isValidWeekId', () => {
+  assert.equal(isValidDate('2024-02-29'), true);
+  assert.equal(isValidDate('2026-02-30'), false);
+  assert.equal(isValidDate('2026-11-5'), false);
+  assert.equal(isValidWeekId('2026-11-09'), true);   // 月曜
+  assert.equal(isValidWeekId('2026-11-15'), false);  // 日曜
+  assert.equal(isValidWeekId('memo'), false);
 });
 
-test('fiscalYear: 4月始まり', () => {
-  assert.equal(fiscalYear('2026-03-31'), 2025);
-  assert.equal(fiscalYear('2026-04-01'), 2026);
-  assert.equal(fiscalYear('2026-11-15'), 2026);
+test('weekMonday / weekSunday', () => {
+  assert.equal(weekMonday('2026-11-15'), '2026-11-09');  // 日曜
+  assert.equal(weekMonday('2026-11-16'), '2026-11-16');  // 月曜
+  assert.equal(weekMonday('2027-01-01'), '2026-12-28');  // 年またぎ
+  assert.equal(weekSunday('2026-11-09'), '2026-11-15');
 });
 
-test('groupByFiscalYear: 年度降順・日付降順', () => {
-  const r = groupByFiscalYear([{ id: '2026-03-31' }, { id: '2026-11-15' }, { id: '2026-04-01' }]);
-  assert.deepEqual(r, [
-    [2026, [{ id: '2026-11-15' }, { id: '2026-04-01' }]],
-    [2025, [{ id: '2026-03-31' }]],
+test('targetWeek: 既定は直前に終わった週', () => {
+  assert.deepEqual(targetWeek(undefined, '2026-11-16'), { monday: '2026-11-09', sunday: '2026-11-15' });
+  assert.deepEqual(targetWeek(undefined, '2026-11-15'), { monday: '2026-11-02', sunday: '2026-11-08' });
+  assert.deepEqual(targetWeek('2026-11-12', '2026-11-16'), { monday: '2026-11-09', sunday: '2026-11-15' });
+  assert.throws(() => targetWeek('2026-02-30', '2026-11-16'), /Invalid date/);
+});
+
+test('fiscalYear: 4月始まり・月曜で判定', () => {
+  assert.equal(fiscalYear('2026-03-30'), 2025);
+  assert.equal(fiscalYear('2026-04-06'), 2026);
+});
+
+test('groupByFiscalYear', () => {
+  assert.deepEqual(groupByFiscalYear([{ id: '2026-03-30' }, { id: '2026-11-09' }, { id: '2026-04-06' }]), [
+    [2026, [{ id: '2026-11-09' }, { id: '2026-04-06' }]],
+    [2025, [{ id: '2026-03-30' }]],
   ]);
 });
 
-test('tagSlug: 衝突しない・大小同一視', () => {
-  const slugs = ['C#', 'C++', 'C', 'CI/CD'].map(tagSlug);
-  assert.equal(new Set(slugs).size, 4);
+test('tagSlug', () => {
+  assert.equal(new Set(['C#', 'C++', 'C', 'CI/CD'].map(tagSlug)).size, 4);
   assert.equal(tagSlug('AWS'), tagSlug('aws'));
   assert.equal(tagSlug('猫見守り'), '猫見守り');
   assert.doesNotMatch(tagSlug('CI/CD'), /\//);
 });
 
-test('countRecent: 今日と29日前を含み、30日前と未来を含まない', () => {
+test('countRecent: 今週含む4週', () => {
   const r = countRecent([
-    { id: '2026-11-15', tags: ['AWS', 'MCP'] },
-    { id: '2026-10-17', tags: ['aws'] },   // 29日前
-    { id: '2026-10-16', tags: ['FBC'] },   // 30日前
-    { id: '2026-11-16', tags: ['FBC'] },   // 未来
-  ], '2026-11-15');
-  assert.equal(r.recordedDays, 2);
+    { id: '2026-11-16', tags: ['AWS', 'MCP'] },  // 今週
+    { id: '2026-10-26', tags: ['aws'] },         // 3週前
+    { id: '2026-10-19', tags: ['FBC'] },         // 4週前（対象外）
+    { id: '2026-11-23', tags: ['FBC'] },         // 未来（対象外）
+  ], '2026-11-18');
+  assert.equal(r.writtenWeeks, 2);
   assert.deepEqual(r.tags, [['AWS', 2], ['MCP', 1]]);
 });
 
@@ -109,73 +129,67 @@ test('todayInTokyo: UTC 15:00 は JST の翌日', () => {
 
 - [ ] **Step 3: 失敗を確認**
 
-Run: `npm test`
-Expected: FAIL（`records-logic.ts` が無い）
+Run: `npm test` / Expected: FAIL（`week-logic.ts` が無い）
 
-- [ ] **Step 4: `src/lib/records-logic.ts` を実装**
+- [ ] **Step 4: `src/lib/week-logic.ts` と `scripts/week.ts` を実装**
 
-`isValidRecordId` は正規表現 `^\d{4}-\d{2}-\d{2}$` に加え、UTC で `Date` を作り直して年月日が一致するかで実在を判定。`tagSlug` は小文字化 → `#`→`sharp`、`+`→`plus` に置換 → `\p{L}\p{N}` 以外の連続を `-` に → 前後の `-` を除去。`countRecent` のタグ集計キーは `tagSlug`。`todayInTokyo` は `toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })`。
+日付計算はすべて UTC の `Date`（`Date.UTC`）で行い、ローカル時刻に依存させない。`isValidDate` は正規表現 `^\d{4}-\d{2}-\d{2}$` と、作り直した `Date` の年月日一致で判定。`tagSlug` は小文字化 → `#`→`sharp`、`+`→`plus` → `\p{L}\p{N}` 以外の連続を `-` → 前後の `-` を除去。`countRecent` の集計キーは `tagSlug`。`todayInTokyo` は `toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })`。`scripts/week.ts` は `targetWeek(process.argv[2], todayInTokyo())`。
 
 - [ ] **Step 5: 通過を確認**
 
-Run: `npm test`
-Expected: 6 tests PASS
+Run: `npm test` / Expected: 8 tests PASS
+Run: `node scripts/week.ts 2026-11-12` / Expected: `2026-11-09 2026-11-15`
+Run: `node scripts/week.ts 2026-02-30; echo $?` / Expected: エラーメッセージと `1`
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add package.json package-lock.json astro.config.mjs tsconfig.json .gitignore src/lib docs/superpowers
-git commit -m "feat: プロジェクト骨組みと記録ロジック"
+git add package.json package-lock.json astro.config.mjs tsconfig.json .gitignore src/lib scripts docs/superpowers
+git commit -m "feat: プロジェクト骨組みと週ロジック"
 ```
 
 ---
 
-### Task 2: 記録コレクションと書式チェック
+### Task 2: 週報コレクション・書式チェック・初期データ
 
 **Files:**
-- Create: `src/content.config.ts`
-- Create: `src/lib/records.ts`
-- Create: `records/2026-11-15.md`
-- Create: `CLAUDE.md`
+- Create: `src/content.config.ts`, `src/lib/weekly.ts`
+- Create: `daily/2026-11-15.md`, `weekly/2026-11-09.md`, `CLAUDE.md`
+- Create（仮）: `src/pages/index.astro`
 
 **Interfaces:**
-- Consumes: `isValidRecordId`, `RecordSummary`（Task 1）
-- Produces: `getRecords(): Promise<CollectionEntry<'records'>[]>`（`src/lib/records.ts`）— 全記録を `id` 降順で返す。`id` が `isValidRecordId` を満たさない記録があれば `Error('Invalid record filename: records/<id>.md (expected YYYY-MM-DD.md)')` を投げる
+- Consumes: `isValidWeekId`（Task 1）
+- Produces: `getWeeklies(): Promise<CollectionEntry<'weekly'>[]>`（`src/lib/weekly.ts`）— `id` 降順。`isValidWeekId` を満たさない `id` があれば `Error('Invalid weekly filename: weekly/<id>.md (expected Monday date YYYY-MM-DD.md)')`
 
-- [ ] **Step 1: コレクションを定義**
+- [ ] **Step 1: コレクションと `getWeeklies` を作る**
 
-`src/content.config.ts` に `records` コレクション。`glob({ pattern: '*.md', base: './records' })`、スキーマ `z.object({ tags: z.array(z.string().min(1)).min(1), summary: z.string().optional() })`。
+`src/content.config.ts` に `weekly` コレクション。`glob({ pattern: '*.md', base: './weekly' })`、スキーマ `z.object({ tags: z.array(z.string().min(1)).min(1), summary: z.string().optional() })`。
 
-- [ ] **Step 2: `getRecords` を実装**
+- [ ] **Step 2: 初期データを置く**
 
-`getCollection('records')` → 各 `id` を `isValidRecordId` で検査 → `id` 降順でソート。
+- `daily/2026-11-15.md`: ユーザーの例そのまま（frontmatter なし、「学習」「気になった技術情報」の入れ子箇条書き、「〜〜」も残す）。
+- `weekly/2026-11-09.md`: 設計書のひな形（`## 今週学んだこと` / `## 気になった技術情報` / `## 来週やりたいこと`）を、上の日報の内容だけで埋めたサンプル。`tags: [MCP, Docker, AWS, FBC]`。
+- `CLAUDE.md`（20〜30行）: `daily/` は自由書式・非公開、`weekly/` の置き場所と frontmatter とひな形、週報は `/weekly [日付]` で作る、作り直しは既存ファイルを消してから、push 前に `npm run check`。
 
-- [ ] **Step 3: 初期記録を置く**
+- [ ] **Step 3: 書式チェックが効くことを確認**
 
-`records/2026-11-15.md`。frontmatter は `tags: [MCP, Docker, AWS, FBC]`、`summary: MCP本を読んだ / 猫見守りの開発環境を整えた`。本文はユーザーの例（「学習」「気になった技術情報」の入れ子箇条書き、「〜〜」はそのまま）。
+仮の `src/pages/index.astro` で `getWeeklies()` の件数を表示（Task 3 で置き換え）。以下を1つずつ置いて `npm run build`、確認後に削除。
 
-- [ ] **Step 4: `CLAUDE.md` に記録の書き方を書く**
-
-置き場所（`records/YYYY-MM-DD.md`）、frontmatter（`tags` 必須・`summary` 任意）、本文の型（「学習」「気になった技術情報」の入れ子箇条書き）、push 前に `npm run check`。10〜20行。
-
-- [ ] **Step 5: 書式チェックが効くことを確認**
-
-仮のページ `src/pages/index.astro` で `getRecords()` を呼び件数を出す（Task 3 で置き換える）。そのうえで以下を1つずつ試し、確認後に削除する。
-
-| 置くファイル | Expected（`npm run build`） |
+| 置くファイル | Expected |
 |---|---|
-| なし（初期記録のみ） | 成功 |
-| `records/2026-11-14.md`（`tags: []`） | 失敗、`tags` のエラー |
-| `records/2026-11-13.md`（frontmatter なし） | 失敗、`tags` のエラー |
-| `records/2026-11-12.md`（`tags: [a` で YAML 破損） | 失敗 |
-| `records/2026-02-30.md`（正しい frontmatter） | 失敗、`Invalid record filename` |
-| `records/memo.md`（正しい frontmatter） | 失敗、`Invalid record filename` |
+| なし | 成功 |
+| `weekly/2026-11-02.md`（`tags: []`） | 失敗、`tags` のエラー |
+| `weekly/2026-10-26.md`（frontmatter なし） | 失敗、`tags` のエラー |
+| `weekly/2026-10-19.md`（`tags: [a` で YAML 破損） | 失敗 |
+| `weekly/2026-11-15.md`（日曜、正しい frontmatter） | 失敗、`Invalid weekly filename` |
+| `weekly/memo.md`（正しい frontmatter） | 失敗、`Invalid weekly filename` |
+| `daily/memo.md`（中身は何でも） | 成功（日報はチェックしない） |
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add src/content.config.ts src/lib/records.ts records CLAUDE.md src/pages/index.astro
-git commit -m "feat: 記録コレクションと書式チェック"
+git add src daily weekly CLAUDE.md
+git commit -m "feat: 週報コレクションと書式チェック"
 ```
 
 ---
@@ -183,131 +197,139 @@ git commit -m "feat: 記録コレクションと書式チェック"
 ### Task 3: レイアウト・一覧・詳細・タグページ
 
 **Files:**
-- Create: `src/layouts/Base.astro`
-- Create: `src/lib/url.ts`
-- Create: `src/components/RecordList.astro`
-- Modify: `src/pages/index.astro`（Task 2 の仮ページを置き換え）
-- Create: `src/pages/records/[id].astro`
-- Create: `src/pages/tags/[tag].astro`
+- Create: `src/layouts/Base.astro`, `src/lib/url.ts`, `src/components/WeeklyList.astro`
+- Modify: `src/pages/index.astro`（仮ページを置き換え）
+- Create: `src/pages/weekly/[id].astro`, `src/pages/tags/[tag].astro`
 
 **Interfaces:**
-- Consumes: `getRecords`（Task 2）、`groupByFiscalYear`, `tagSlug`（Task 1）
+- Consumes: `getWeeklies`（Task 2）、`groupByFiscalYear`, `tagSlug`, `weekSunday`（Task 1）
 - Produces:
-  - `url(path: string): string`（`src/lib/url.ts`）— `import.meta.env.BASE_URL` を前置。`url('records/2026-11-15/')` → `/what_i_learned/records/2026-11-15/`
-  - `Base.astro` props: `{ title: string }`。`<html lang="ja">`、ヘッダーに「一覧」（`url('')`）と「この1ヶ月」（`url('recent/')`）、`<slot />`、`<slot name="head" />`。CSS 変数で配色、`prefers-color-scheme: dark` で切替
-  - `RecordList.astro` props: `{ records: CollectionEntry<'records'>[] }` — `groupByFiscalYear` で「YYYY年度」見出し + 各行「MM/DD・summary（あれば）・タグ（タグページへのリンク）」
+  - `url(path: string): string`（`src/lib/url.ts`）— `import.meta.env.BASE_URL` を前置。`url('weekly/2026-11-09/')` → `/what_i_learned/weekly/2026-11-09/`
+  - `Base.astro` props `{ title: string }`。`<html lang="ja">`、ヘッダーに「一覧」（`url('')`）と「この1ヶ月」（`url('recent/')`）、`<slot />` と `<slot name="head" />`。CSS 変数の配色を `prefers-color-scheme: dark` で切替
+  - `WeeklyList.astro` props `{ weeklies: CollectionEntry<'weekly'>[] }` — 「YYYY年度」見出し + 各行「MM/DD〜MM/DD・summary（あれば）・タグ（リンク）」。行は詳細ページへのリンク
 
-- [ ] **Step 1: `url.ts` と `Base.astro` を作る**
-
-- [ ] **Step 2: 一覧 `index.astro`**
-
-`Base` + 全タグ一覧（`tagSlug` で重複除去、リンク付き）+ `<div id="search"></div>`（Task 4 で使う）+ `RecordList`。
-
-- [ ] **Step 3: 詳細 `records/[id].astro`**
-
-`getStaticPaths` は `getRecords()` から `{ params: { id }, props: { entry } }`。`render(entry)` で本文を描画。見出しは `YYYY/MM/DD`、タグはタグページへのリンク。本文を囲む要素に `data-pagefind-body`。
-
-- [ ] **Step 4: タグ `tags/[tag].astro`**
-
-`getStaticPaths` は全タグの `tagSlug` ごとに1ページ。props はそのスラッグを持つ記録と表示名（最初に見つかった表記）。中身は見出し `#表示名` + `RecordList`。
+- [ ] **Step 1: `url.ts` と `Base.astro`**
+- [ ] **Step 2: `index.astro`** — `Base` + 全タグ一覧（`tagSlug` で重複除去、リンク）+ `<div id="search"></div>` + `WeeklyList`
+- [ ] **Step 3: `weekly/[id].astro`** — `getStaticPaths` は `getWeeklies()` から。見出し「YYYY/MM/DD〜YYYY/MM/DD の週」、タグ（リンク）、`render(entry)` の本文。本文を囲む要素に `data-pagefind-body`
+- [ ] **Step 4: `tags/[tag].astro`** — `tagSlug` ごとに1ページ。見出し `#表示名` + `WeeklyList`
 
 - [ ] **Step 5: ビルド出力を確認**
 
-Run: `npm run build && ls dist dist/records/2026-11-15 dist/tags`
-Expected: `dist/index.html`, `dist/records/2026-11-15/index.html`, `dist/tags/mcp/index.html` などが存在する
+Run: `npm run build && ls dist/weekly/2026-11-09 dist/tags`
+Expected: `index.html` と `mcp/`, `docker/`, `aws/`, `fbc/` がある
 
-Run: `grep -rhoE 'href="/(records|tags|recent)[^"]*"' dist | head`
+Run: `grep -rhoE 'href="/(weekly|tags|recent)[^"]*"' dist | head`
 Expected: 出力なし（base 抜けのリンクがない）
+
+Run: `grep -rl '気になった技術情報' dist; grep -rl 'daily' dist --include=*.html`
+Expected: 1つ目は `dist/weekly/2026-11-09/index.html` だけ（週報の見出し）。2つ目は出力なし。さらに日報だけにある一文（例: `docker sandboxes 環境にコンテナを配置し`）で `grep -rl` して、出力なし
 
 - [ ] **Step 6: 見た目を確認**
 
 Run: `npm run preview`
-Expected: `http://localhost:4321/what_i_learned/` で「2026年度」見出しの下に 11/15 の行、クリックで詳細、タグクリックでタグページ。ダークモードでも読める。
+Expected: `http://localhost:4321/what_i_learned/` に「2026年度」の下に「11/09〜11/15」の行。クリックで詳細、タグクリックでタグページ。ダークモードでも読める
 
 - [ ] **Step 7: Commit**
 
 ```bash
 git add src
-git commit -m "feat: 一覧・詳細・タグページ"
+git commit -m "feat: 週報の一覧・詳細・タグページ"
 ```
 
 ---
 
 ### Task 4: 全文検索
 
-**Files:**
-- Modify: `src/pages/index.astro`
+**Files:** Modify: `src/pages/index.astro`
 
-**Interfaces:**
-- Consumes: `url`（Task 3）、Task 3 の `#search` 要素と `data-pagefind-body`
+**Interfaces:** Consumes: `url`（Task 3）、`#search` と `data-pagefind-body`（Task 3）
 
-- [ ] **Step 1: Pagefind UI を読み込む**
-
-`index.astro` の `head` スロットに `url('pagefind/pagefind-ui.css')`、本文末尾に `<script is:inline src={url('pagefind/pagefind-ui.js')}>` と `new PagefindUI({ element: '#search', showSubResults: true })`。
-
-- [ ] **Step 2: 日本語で検索できることを確認**
+- [ ] **Step 1:** `head` スロットに `url('pagefind/pagefind-ui.css')`、本文末尾に `<script is:inline src={url('pagefind/pagefind-ui.js')}>` と `new PagefindUI({ element: '#search', showSubResults: true })`
+- [ ] **Step 2: 確認**
 
 Run: `npm run build && npm run preview`
-Expected: build ログに Pagefind の索引作成（1 page）。`http://localhost:4321/what_i_learned/` で「猫見守り」と「MCP」を検索すると 2026-11-15 がヒットし、リンク先が `/what_i_learned/records/2026-11-15/`
+Expected: ビルドログで Pagefind が 1 page を索引。一覧で「猫見守り」「MCP」を検索すると 11/09 の週がヒットし、リンク先が `/what_i_learned/weekly/2026-11-09/`
 
-- [ ] **Step 3: Commit**
-
-```bash
-git add src/pages/index.astro
-git commit -m "feat: Pagefind による全文検索"
-```
+- [ ] **Step 3: Commit** — `git add src/pages/index.astro && git commit -m "feat: Pagefind による全文検索"`
 
 ---
 
 ### Task 5: 「この1ヶ月」ページ
 
-**Files:**
-- Create: `src/pages/recent.astro`
+**Files:** Create: `src/pages/recent.astro`
 
-**Interfaces:**
-- Consumes: `getRecords`（Task 2）、`countRecent`, `todayInTokyo`, `tagSlug`（Task 1）、`url`（Task 3）
+**Interfaces:** Consumes: `getWeeklies`（Task 2）、`countRecent`, `todayInTokyo`, `tagSlug`（Task 1）、`url`（Task 3）
 
-- [ ] **Step 1: ページを作る**
-
-ビルド時に `getRecords()` から `{ id, tags }[]` を `<script type="application/json" id="records-data">` に埋め込む。クライアント `<script>`（Astro がバンドル）で `countRecent(data, todayInTokyo())` を計算し、「記録した日数: N日 / 30日」と、タグ別回数の表（多い順、タグ名は `url('tags/' + tagSlug(tag) + '/')` へのリンク）を描画する。記録が0件なら「この30日の記録はありません」。JS 無効時は `<noscript>` で一言。
-
+- [ ] **Step 1:** ビルド時に `{ id, tags }[]` を `<script type="application/json" id="weekly-data">` に埋め込む。クライアント `<script>`（Astro がバンドル）で `countRecent(data, todayInTokyo())` を計算し、「週報を書いた週: N週 / 4週」と、タグ別回数の表（多い順、タグは `url('tags/' + tagSlug(tag) + '/')` へリンク）を描画。0件なら「直近4週の週報はありません」。`<noscript>` で一言
 - [ ] **Step 2: 確認**
 
 Run: `npm run build && npm run preview`
-Expected: `http://localhost:4321/what_i_learned/recent/` に「記録した日数: 1日 / 30日」と MCP / Docker / AWS / FBC が各1回（今日が 2026-12-14 以前の場合）
+Expected: `/what_i_learned/recent/` に「週報を書いた週: 1週 / 4週」と MCP / Docker / AWS / FBC が各1回（今日が 2026-11-09〜2026-12-06 の場合）
 
-- [ ] **Step 3: Commit**
-
-```bash
-git add src/pages/recent.astro
-git commit -m "feat: この1ヶ月ページ"
-```
+- [ ] **Step 3: Commit** — `git add src/pages/recent.astro && git commit -m "feat: この1ヶ月ページ"`
 
 ---
 
-### Task 6: GitHub Pages への公開
+### Task 6: `/weekly` スキル
 
-**Files:**
-- Create: `.github/workflows/deploy.yml`
+**Files:** Create: `.claude/skills/weekly/SKILL.md`
 
-- [ ] **Step 1: ワークフローを書く**
+**Interfaces:** Consumes: `node scripts/week.ts [date]`（Task 1）、週報のひな形と frontmatter（Task 2 の `CLAUDE.md`）
 
-Astro 公式ドキュメント「Deploy to GitHub Pages」の構成どおり。`on: push: branches: [main]` と `workflow_dispatch`、`permissions: contents: read, pages: write, id-token: write`。build ジョブは `actions/checkout` → `withastro/action`（`node-version: 24`。`npm run build` が走るので Pagefind も実行される）。deploy ジョブは `actions/deploy-pages`。各 action はドキュメント記載の最新メジャー版。
+注意: このセッションのサンドボックスは `.claude/skills` への Bash 書き込みを禁止している。Write ツールで作る（許可を求められたらユーザーが承認する）。書けなければ、内容をユーザーに渡して作ってもらう。
 
-- [ ] **Step 2: 手元で最終確認**
+- [ ] **Step 1: SKILL.md を書く**
 
-Run: `npm run check`
-Expected: テスト全件 PASS、ビルド成功
+frontmatter: `name: weekly`、`description`（日報から週報を作る。引数は任意の日付）。本文の手順は設計書の「`/weekly` スキル」のとおりで、次の値を固定する。
+1. `node scripts/week.ts $ARGUMENTS` で `<monday> <sunday>` を得る。失敗したらそのメッセージを報告して終了。
+2. `weekly/<monday>.md` があれば「既にあります。作り直すなら先に消してください」と報告して終了。
+3. `daily/<monday>.md`〜`daily/<sunday>.md` のうち存在するものを読む。1つもなければ「この週の日報がありません」と報告して終了。
+4. `weekly/*.md` の既存タグを集め、同じ意味のタグはその表記を使う。
+5. ひな形（`## 今週学んだこと` / `## 気になった技術情報` / `## 来週やりたいこと`）で `weekly/<monday>.md` を書く。日報にない内容は書かない。`summary` は1行。
+6. `npm run check` を実行し、失敗したら直す。
+7. コミット・push はしない。作ったファイルのパスを報告する。
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 2: 確認（手元）**
 
-```bash
-git add .github/workflows/deploy.yml
-git commit -m "ci: GitHub Pages へのデプロイ"
-```
+1. `/weekly 2026-11-12` → 「既にあります」で止まる（サンプルがあるため）。
+2. `weekly/2026-11-09.md` を一時退避して `/weekly 2026-11-12` → `weekly/2026-11-09.md` ができ、`npm run check` が通る。日報にない内容がない。確認後、どちらを残すかユーザーに聞く。
+3. `/weekly 2026-10-01` → 「この週の日報がありません」で止まり、ファイルは作られない。
 
-- [ ] **Step 4: 公開（ユーザーの確認後）**
+- [ ] **Step 3: Commit** — `git add .claude/skills/weekly && git commit -m "feat: /weekly スキル"`
 
-ユーザーに確認してから `git push -u origin main`。ユーザーがリポジトリの Settings → Pages で Source を「GitHub Actions」に設定する。
+---
 
-Expected: Actions の deploy が成功し、`https://kjman678.github.io/what_i_learned/` で一覧・詳細・タグ・検索・この1ヶ月が動く。
+### Task 7: GitHub Actions（公開と週報の手動実行）
+
+**Files:** Create: `.github/workflows/deploy.yml`, `.github/workflows/weekly.yml`
+
+**Interfaces:** Consumes: `npm run build`（Task 1）、`node scripts/week.ts`（Task 1）、`/weekly` スキル（Task 6）
+
+- [ ] **Step 1: `deploy.yml`**
+
+Astro 公式「Deploy to GitHub Pages」の構成どおり。`on: push: branches: [main]` と `workflow_dispatch`。`permissions: contents: read, pages: write, id-token: write`。build は `actions/checkout` → `withastro/action`（`node-version: 24`）。deploy は `actions/deploy-pages`。
+
+- [ ] **Step 2: `weekly.yml`**
+
+- `on: workflow_dispatch: inputs: week: { description: '対象週に含まれる日付 YYYY-MM-DD（空なら先週）', required: false, type: string }`
+- `permissions: contents: write, pull-requests: write, id-token: write`
+- 手順: `actions/checkout` → `actions/setup-node`（24）→ `npm ci` → `node scripts/week.ts "${{ inputs.week }}"` で monday/sunday を出力変数に（失敗なら終了）→ `anthropics/claude-code-action` に `prompt: /weekly ${{ inputs.week }}` と `claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}`、ファイルの読み書きと `node` / `npm run check` を許可（入力名と許可ツールの渡し方は action の README で確認）→ `weekly/<monday>.md` が無ければ失敗で終了 → `git switch -c weekly/<monday>`、そのファイルだけ `git add`、コミット、push → `gh pr create --base main --title "週報 <monday>〜<sunday>" --body "/weekly で自動作成。内容を確認してマージしてください。"`（`GH_TOKEN: ${{ github.token }}`）
+- `inputs.week` はシェルに直接埋め込まず、`env:` 経由で渡す（コマンドインジェクション対策）
+
+- [ ] **Step 3: 手元で最終確認**
+
+Run: `npm run check` / Expected: テスト全件 PASS、ビルド成功
+
+- [ ] **Step 4: Commit** — `git add .github && git commit -m "ci: 公開と週報作成のワークフロー"`
+
+- [ ] **Step 5: 公開（ユーザーの確認後）**
+
+ユーザーに確認してから `git push -u origin main`。ユーザーの手作業:
+1. Settings → Pages で Source を「GitHub Actions」
+2. Settings → Actions → General で「Allow GitHub Actions to create and approve pull requests」を有効化
+3. Settings → Secrets and variables → Actions に `CLAUDE_CODE_OAUTH_TOKEN`（`claude setup-token` で取得）
+
+Expected:
+- `deploy` が成功し、`https://kjman678.github.io/what_i_learned/` で一覧・詳細・タグ・検索・この1ヶ月が動く
+- Actions タブの「weekly」に [Run workflow] が出る。`week` に `2026-11-01` を入れて実行 → 日報がないので失敗し、PR は作られない
+- 日報がある週で実行 → `weekly/<monday>.md` だけを含む PR ができる
