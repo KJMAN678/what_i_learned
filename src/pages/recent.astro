@@ -1,0 +1,41 @@
+---
+import Base from '../layouts/Base.astro';
+import { getWeeklies } from '../lib/weekly';
+import { url } from '../lib/url';
+const weeklies = await getWeeklies();
+const data = weeklies.map((w) => ({ id: w.id, tags: w.data.tags }));
+const base = url('');
+---
+<Base title="この1ヶ月 | What I Learned">
+  <h1>この1ヶ月</h1>
+  <p class="muted">今週を含む直近4週の週報から集計しています。</p>
+  <p id="summary"></p>
+  <table id="tags"></table>
+  <noscript><p>集計の表示には JavaScript が必要です。</p></noscript>
+  <script type="application/json" id="weekly-data" set:html={JSON.stringify(data)} />
+  <script>
+    import { countRecent, tagSlug, todayInTokyo } from '../lib/week-logic';
+
+    const data = JSON.parse(document.getElementById('weekly-data')!.textContent!);
+    const base = document.body.dataset.base ?? '/';
+    const { writtenWeeks, tags } = countRecent(data, todayInTokyo());
+    document.getElementById('summary')!.textContent =
+      writtenWeeks === 0 ? '直近4週の週報はありません' : `週報を書いた週: ${writtenWeeks}週 / 4週`;
+    const table = document.getElementById('tags')!;
+    for (const [tag, count] of tags) {
+      const tr = table.insertRow();
+      const a = document.createElement('a');
+      a.href = `${base}tags/${tagSlug(tag)}/`;
+      a.textContent = tag;
+      tr.insertCell().append(a);
+      tr.insertCell().textContent = `${count}回`;
+    }
+  </script>
+  <script is:inline define:vars={{ base }}>
+    document.body.dataset.base = base;
+  </script>
+</Base>
+<style>
+  table { border-collapse: collapse; }
+  :global(#tags td) { padding: 4px 16px 4px 0; }
+</style>
