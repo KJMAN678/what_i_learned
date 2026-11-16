@@ -9,11 +9,16 @@ const tags = new Map<string, string>();
 for (const w of weeklies) for (const t of w.data.tags) if (!tags.has(tagSlug(t))) tags.set(tagSlug(t), t);
 ---
 <Base title="What I Learned">
+  <link slot="head" rel="stylesheet" href={url('pagefind/pagefind-ui.css')} />
   <div id="search"></div>
   <ul class="tags all-tags">
     {[...tags].map(([slug, label]) => <li><a href={url(`tags/${slug}/`)}>{label}</a></li>)}
   </ul>
   <WeeklyList weeklies={weeklies} />
+  <script is:inline src={url('pagefind/pagefind-ui.js')}></script>
+  <script is:inline>
+    new PagefindUI({ element: '#search', showSubResults: true });
+  </script>
 </Base>
 <style>
   .all-tags { margin: 16px 0; }
