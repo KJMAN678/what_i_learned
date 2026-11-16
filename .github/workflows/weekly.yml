@@ -43,6 +43,17 @@ jobs:
             exit 1
           fi
 
+      - name: 日報が無ければ止める
+        env:
+          MONDAY: ${{ steps.week.outputs.monday }}
+          SUNDAY: ${{ steps.week.outputs.sunday }}
+        run: |
+          n=$(ls daily 2>/dev/null | sed 's/\.md$//' | awk -v a="$MONDAY" -v b="$SUNDAY" '$0>=a && $0<=b' | wc -l)
+          if [ "$n" -eq 0 ]; then
+            echo "::error::この週（$MONDAY〜$SUNDAY）の日報がありません。日報を push してから、もう一度実行してください。"
+            exit 1
+          fi
+
       - name: 週報を作る
         uses: anthropics/claude-code-action@v1
         with:
@@ -50,7 +61,8 @@ jobs:
           github_token: ${{ github.token }}
           prompt: |
             .claude/skills/weekly/SKILL.md を読み、その手順に従って週報を作ってください。
-            対象週は ${{ steps.week.outputs.monday }} 〜 ${{ steps.week.outputs.sunday }} です（手順1の `node scripts/week.ts` の結果と同じです）。
+            対象週は ${{ steps.week.outputs.monday }} 〜 ${{ steps.week.outputs.sunday }} です。
+            手順1は `node scripts/week.ts ${{ steps.week.outputs.monday }}` として実行してください（$ARGUMENTS は ${{ steps.week.outputs.monday }} です）。
             コミットと push はしないでください。
           claude_args: |
             --allowedTools "Read,Write,Edit,Glob,Grep,Bash(node scripts/week.ts:*),Bash(npm run check),Bash(ls:*)"
@@ -58,7 +70,11 @@ jobs:
       - name: 週報ができたか確認する
         env:
           MONDAY: ${{ steps.week.outputs.monday }}
-        run: test -f "weekly/$MONDAY.md"
+        run: |
+          if [ ! -f "weekly/$MONDAY.md" ]; then
+            echo "::error::weekly/$MONDAY.md が作られませんでした。「週報を作る」ステップのログを確認してください。"
+            exit 1
+          fi
 
       - name: PR を作る
         env:
