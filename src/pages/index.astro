@@ -1,0 +1,5 @@
+---
+import { getWeeklies } from '../lib/weekly';
+const weeklies = await getWeeklies();
+---
+<p>{weeklies.length}</p>
