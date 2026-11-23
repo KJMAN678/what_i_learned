@@ -12,6 +12,7 @@ from wil.records import (
     _split_sections,
     check_paths,
     load_records,
+    main,
     parse_record,
 )
 
@@ -264,3 +265,40 @@ def test_check_paths_accepts_relative_paths(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     errors = check_paths([Path("content/foo.txt")], Path("content"))
     assert [e.path for e in errors] == [Path("content/foo.txt")]
+
+
+def test_main_reports_errors_and_exits_1(tmp_path, monkeypatch, capsys):
+    content = make_content(tmp_path)
+    write(content, "index.md", "# top\n")
+    write(content, "foo.txt", "x")
+    write(content / "logs", "2026-02-30.md", VALID)
+    monkeypatch.chdir(tmp_path)
+    args = ["content/index.md", "content/foo.txt", "content/logs/2026-02-30.md"]
+    assert main(args) == 1
+    lines = capsys.readouterr().err.splitlines()
+    assert len(lines) == 2
+    assert lines[0].startswith("content/foo.txt: 公開ディレクトリに置けない")
+    assert lines[1].startswith("content/logs/2026-02-30.md: 存在しない日付です")
+
+
+def test_main_valid_files_exit_0(tmp_path, monkeypatch, capsys):
+    content = make_content(tmp_path)
+    write(content, "index.md", "# top\n")
+    write(content / "logs", "2026-11-23.md", VALID)
+    monkeypatch.chdir(tmp_path)
+    assert main(["content/index.md", "content/logs/2026-11-23.md"]) == 0
+    assert capsys.readouterr().err == ""
+
+
+def test_main_without_args_checks_whole_content(tmp_path, monkeypatch, capsys):
+    content = make_content(tmp_path)
+    write(content, "index.md", "# top\n")
+    write(content, ".DS_Store", "x")
+    write(content / "logs", "2026-11-23.md", VALID)
+    write(content / "logs", "2026-02-30.md", VALID)
+    monkeypatch.chdir(tmp_path)
+    assert main([]) == 1
+    lines = capsys.readouterr().err.splitlines()
+    assert lines == ["content/logs/2026-02-30.md: 存在しない日付です"]
+    (content / "logs" / "2026-02-30.md").unlink()
+    assert main([]) == 0

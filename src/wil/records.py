@@ -1,6 +1,7 @@
 """ログ形式の唯一の定義: 型・パース・検証。"""
 
 import re
+import sys
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date
@@ -163,3 +164,16 @@ def check_paths(
             except RecordError as e:
                 errors.append(e)
     return errors
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = sys.argv[1:] if argv is None else argv
+    paths = [Path(a) for a in args] if args else sorted(CONTENT_DIR.rglob("*"))
+    errors = check_paths(paths)
+    for e in errors:
+        print(e, file=sys.stderr)
+    return 1 if errors else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
