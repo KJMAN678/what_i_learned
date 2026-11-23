@@ -1,11 +1,18 @@
 """ログ形式の唯一の定義: 型・パース・検証。"""
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
 import yaml
+
+CONTENT_DIR = Path("content")
+LOGS_SUBDIR = "logs"
+_LOG_PATTERN = r"logs/\d{4}-\d{2}-\d{2}\.md"
+# content からの相対 POSIX パスに対する正規表現（fullmatch）。公開ファイルの種類の唯一の定義
+ALLOWED_PATTERNS: tuple[str, ...] = (r"index\.md", _LOG_PATTERN)
 
 
 @dataclass(frozen=True)
@@ -106,3 +113,53 @@ def parse_record(path: Path) -> Record:
         body=body,
         sections=_split_sections(body),
     )
+
+
+class RecordsInvalid(Exception):
+    def __init__(self, errors: Iterable[RecordError]):
+        self.errors = tuple(sorted(errors, key=lambda e: e.path))
+        super().__init__("\n".join(str(e) for e in self.errors))
+
+
+def load_records(content_dir: Path = CONTENT_DIR) -> list[Record]:
+    records: list[Record] = []
+    errors: list[RecordError] = []
+    for path in sorted((content_dir / LOGS_SUBDIR).glob("*.md")):
+        if path.name.startswith("."):
+            continue
+        try:
+            records.append(parse_record(path))
+        except RecordError as e:
+            errors.append(e)
+    if errors:
+        raise RecordsInvalid(errors)
+    return sorted(records, key=lambda r: r.date)
+
+
+def check_paths(
+    paths: Iterable[Path], content_dir: Path = CONTENT_DIR
+) -> list[RecordError]:
+    root = content_dir.resolve()
+    errors: list[RecordError] = []
+    for path in paths:
+        try:
+            rel = path.resolve().relative_to(root)
+        except ValueError:
+            continue  # 公開ディレクトリ外
+        if any(part.startswith(".") for part in rel.parts) or not path.is_file():
+            continue  # ドットファイル・削除済み・ディレクトリ
+        name = rel.as_posix()
+        if not any(re.fullmatch(p, name) for p in ALLOWED_PATTERNS):
+            errors.append(
+                RecordError(
+                    path,
+                    "公開ディレクトリに置けないファイルです"
+                    "（wil.records.ALLOWED_PATTERNS を参照）",
+                )
+            )
+        elif re.fullmatch(_LOG_PATTERN, name):
+            try:
+                parse_record(path)
+            except RecordError as e:
+                errors.append(e)
+    return errors

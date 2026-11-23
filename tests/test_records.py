@@ -1,8 +1,19 @@
 from datetime import date
+from pathlib import Path
 
 import pytest
 
-from wil.records import Record, RecordError, Section, _split_sections, parse_record
+from wil.records import (
+    ALLOWED_PATTERNS,
+    Record,
+    RecordError,
+    RecordsInvalid,
+    Section,
+    _split_sections,
+    check_paths,
+    load_records,
+    parse_record,
+)
 
 VALID = """\
 ---
@@ -160,3 +171,96 @@ def test_parse_record_fills_sections(tmp_path):
     assert record.sections == (
         Section(2, "学んだこと", "\n- SnapStart\n  - Java 以外でも使える条件\n"),
     )
+
+
+def make_content(tmp_path):
+    content = tmp_path / "content"
+    (content / "logs").mkdir(parents=True)
+    return content
+
+
+def test_load_records_ascending(tmp_path):
+    content = make_content(tmp_path)
+    for name in ["2026-11-23.md", "2026-01-05.md", "2026-03-10.md"]:
+        write(content / "logs", name, VALID)
+    records = load_records(content)
+    assert [r.date for r in records] == [
+        date(2026, 1, 5),
+        date(2026, 3, 10),
+        date(2026, 11, 23),
+    ]
+
+
+def test_load_records_empty(tmp_path):
+    assert load_records(make_content(tmp_path)) == []
+    assert load_records(tmp_path / "missing") == []
+
+
+def test_load_records_skips_dot_files(tmp_path):
+    logs = make_content(tmp_path) / "logs"
+    write(logs, "2026-11-23.md", VALID)
+    write(logs, ".draft.md", "not a log")
+    assert [r.date for r in load_records(logs.parent)] == [date(2026, 11, 23)]
+
+
+def test_load_records_reports_all_errors(tmp_path):
+    logs = make_content(tmp_path) / "logs"
+    write(logs, "2026-11-23.md", VALID)
+    bad_date = write(logs, "2026-02-30.md", VALID)
+    no_tags = write(logs, "2026-01-01.md", "---\nsummary: x\n---\n")
+    with pytest.raises(RecordsInvalid) as info:
+        load_records(logs.parent)
+    errors = info.value.errors
+    assert [e.path for e in errors] == [no_tags, bad_date]
+    assert "tags がありません" in errors[0].reason
+    assert "存在しない日付です" in errors[1].reason
+    assert str(info.value) == "\n".join(str(e) for e in errors)
+
+
+def test_allowed_patterns():
+    assert {r"index\.md", r"logs/\d{4}-\d{2}-\d{2}\.md"} <= set(ALLOWED_PATTERNS)
+
+
+def test_check_paths_valid_files(tmp_path):
+    content = make_content(tmp_path)
+    paths = [
+        write(content, "index.md", "# top\n"),
+        write(content / "logs", "2026-11-23.md", VALID),
+    ]
+    assert check_paths(paths, content) == []
+
+
+def test_check_paths_reports_disallowed_and_invalid(tmp_path):
+    content = make_content(tmp_path)
+    foo = write(content, "foo.txt", "x")
+    outside_logs = write(content, "2026-11-23.md", VALID)
+    bad_log = write(content / "logs", "2026-02-30.md", VALID)
+    errors = check_paths([foo, outside_logs, bad_log], content)
+    assert [e.path for e in errors] == [foo, outside_logs, bad_log]
+    not_allowed = (
+        "公開ディレクトリに置けないファイルです（wil.records.ALLOWED_PATTERNS を参照）"
+    )
+    assert errors[0].reason == not_allowed
+    assert errors[1].reason == not_allowed
+    assert "存在しない日付です" in errors[2].reason
+
+
+def test_check_paths_ignores_dot_outside_and_deleted(tmp_path):
+    content = make_content(tmp_path)
+    (content / ".obsidian").mkdir()
+    paths = [
+        write(content, ".DS_Store", "x"),
+        write(content / ".obsidian", "x.md", "x"),
+        write(tmp_path, "outside.txt", "x"),
+        content / "logs" / "2026-11-24.md",  # 削除済み
+        content / "logs",  # ディレクトリ
+    ]
+    assert check_paths(paths, content) == []
+
+
+def test_check_paths_accepts_relative_paths(tmp_path, monkeypatch):
+    content = make_content(tmp_path)
+    write(content, "foo.txt", "x")
+    monkeypatch.chdir(tmp_path)
+    errors = check_paths([Path("content/foo.txt")], Path("content"))
+    assert [e.path for e in errors] == [Path("content/foo.txt")]
