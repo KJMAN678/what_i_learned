@@ -9,7 +9,7 @@
   - 完了状態: `uv sync --frozen` が成功し、`uv run zensical --version` が固定した版を表示し、`uv run python -c "import wil"` が成功する
   - _Requirements: 6.6_
 
-- [ ] 1.2 無視ファイル設定で生成物・環境・秘密情報の再混入を防ぐ
+- [x] 1.2 無視ファイル設定で生成物・環境・秘密情報の再混入を防ぐ
   - ビルド出力、仮想環境、Python キャッシュ、pytest・ruff のキャッシュ、旧試作の生成物（dist、node_modules、.astro）、環境変数ファイル（.env 系）、.DS_Store を無視対象にする
   - サイト生成ツールのキャッシュディレクトリは 4.2 で名前を確認して追記する
   - 完了状態: `git check-ignore --no-index` で `site/`、`.venv/`、`dist/`、`node_modules/`、`.astro/`、`.env`、`.env.local` がすべて無視対象と判定される

@@ -1,0 +1,21 @@
+# build output
+site/
+
+# Python environment and caches
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# old Astro prototype artifacts
+dist/
+node_modules/
+.astro/
+
+# environment files (secrets)
+.env
+.env.*
+
+# OS
+.DS_Store
