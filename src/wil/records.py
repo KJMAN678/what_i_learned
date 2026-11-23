@@ -26,6 +26,28 @@ class Record:
     sections: tuple[Section, ...]
 
 
+HEADING = re.compile(r"(#{1,6})(?:[ \t]+(.*?))?[ \t]*")
+
+
+def _split_sections(body: str) -> tuple[Section, ...]:
+    sections: list[Section] = []
+    level, title, chunk = 0, "", []
+    in_fence = False
+    for line in body.splitlines(keepends=True):
+        if line.startswith(("```", "~~~")):
+            in_fence = not in_fence
+        m = None if in_fence else HEADING.fullmatch(line.rstrip("\r\n"))
+        if m is None:
+            chunk.append(line)
+            continue
+        if level or "".join(chunk).strip():
+            sections.append(Section(level, title, "".join(chunk)))
+        level, title, chunk = len(m[1]), m[2] or "", []
+    if level or "".join(chunk).strip():
+        sections.append(Section(level, title, "".join(chunk)))
+    return tuple(sections)
+
+
 class RecordError(Exception):
     def __init__(self, path: Path, reason: str):
         super().__init__(f"{path}: {reason}")
@@ -74,12 +96,13 @@ def parse_record(path: Path) -> Record:
     if summary is not None and (not isinstance(summary, str) or "\n" in summary):
         fail("summary は 1 行の文字列で書いてください")
 
+    body = "".join(lines[end + 1 :])
     return Record(
         date=day,
         path=path,
         url_path=f"logs/{day.isoformat()}/",
         tags=tuple(tags),
         summary=summary,
-        body="".join(lines[end + 1 :]),
-        sections=(),  # 2.2 で見出し分割を埋める
+        body=body,
+        sections=_split_sections(body),
     )

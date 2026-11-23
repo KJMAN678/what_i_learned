@@ -2,7 +2,7 @@ from datetime import date
 
 import pytest
 
-from wil.records import Record, RecordError, parse_record
+from wil.records import Record, RecordError, Section, _split_sections, parse_record
 
 VALID = """\
 ---
@@ -122,4 +122,41 @@ def test_bad_summary(tmp_path, summary):
     assert_error(
         write(tmp_path, "2026-11-23.md", text),
         "summary は 1 行の文字列で書いてください",
+    )
+
+
+def test__split_sections_by_heading_level():
+    body = "## A\na1\n### B\nb1\n\n## C\n"
+    assert _split_sections(body) == (
+        Section(2, "A", "a1\n"),
+        Section(3, "B", "b1\n\n"),
+        Section(2, "C", ""),
+    )
+
+
+def test_hash_lines_in_code_fences_are_not_headings():
+    body = "## Run\n```bash\n# comment\n```\n~~~\n# tilde\n~~~\n"
+    assert _split_sections(body) == (
+        Section(2, "Run", "```bash\n# comment\n```\n~~~\n# tilde\n~~~\n"),
+    )
+
+
+def test_text_before_first_heading_is_level_0():
+    assert _split_sections("intro\n\n## A\na\n") == (
+        Section(0, "", "intro\n\n"),
+        Section(2, "A", "a\n"),
+    )
+
+
+def test_blank_leading_text_and_non_headings():
+    assert _split_sections("\n## A\n#tag\n####### seven\n") == (
+        Section(2, "A", "#tag\n####### seven\n"),
+    )
+    assert _split_sections("") == ()
+
+
+def test_parse_record_fills_sections(tmp_path):
+    record = parse_record(write(tmp_path, "2026-11-23.md", VALID))
+    assert record.sections == (
+        Section(2, "学んだこと", "\n- SnapStart\n  - Java 以外でも使える条件\n"),
     )
