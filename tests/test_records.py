@@ -302,3 +302,8 @@ def test_main_without_args_checks_whole_content(tmp_path, monkeypatch, capsys):
     assert lines == ["content/logs/2026-02-30.md: 存在しない日付です"]
     (content / "logs" / "2026-02-30.md").unlink()
     assert main([]) == 0
+
+
+def test_main_on_real_content_exits_0(monkeypatch):
+    monkeypatch.chdir(Path(__file__).resolve().parents[1])
+    assert main([]) == 0

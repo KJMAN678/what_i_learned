@@ -1,0 +1,30 @@
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: detect-private-key
+      - id: check-added-large-files
+        args: [--maxkb=500]
+  - repo: local
+    hooks:
+      - id: forbid-env-files
+        name: forbid .env files
+        language: fail
+        entry: .env files must not be committed
+        files: (^|/)\.env(\..*)?$
+      - id: wil-records
+        name: wil records check
+        language: system
+        entry: uv run python -m wil.records
+        files: ^content/
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.6
+    hooks:
+      - id: ruff-check
+        types_or: [python, pyi]
+      - id: ruff-format
+        types_or: [python, pyi]

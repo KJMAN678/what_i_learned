@@ -130,6 +130,12 @@
 - Zensical のキャッシュディレクトリ名がドキュメントで未確認 — 実装タスクで初回ビルド後に生成物を確認し `.gitignore` に追加する
 - 旧 Astro 生成物が index に残っている — `.gitignore` で再混入を防ぎ、除去はオーナーが行う（手順書に記載）
 
+## 統合確認の結果（タスク 4.2）
+- ファイル名由来タイトル: H1 の無いログは `<title>` とナビ表示が `2026 11 23`（`-` が空白に置換）。日付は識別可能で 3.2 を満たす。H1 入りの一時ログでは H1（`見出し`）がタイトルになり、URL は `logs/2026-11-24/` のまま
+- サブパス: ルート絶対パスは `404.html` のみで、すべて `/what_i_learned/` 接頭辞付き（`site_url` 由来）。`"/assets` 形式は無い。他ページは相対パス
+- キャッシュ: Zensical はリポジトリ直下に `.cache/` を作る（中に `*` だけの `.gitignore` を自前で置くため元々 untracked には出ない）。明示のため `.gitignore` に `.cache/` を追加
+- 日本語検索の品質（記録のみ）: `search.json` の config は `lang: ["ja"]`、区切りは空白・記号のみ（`[\s\-_,:!=\[\]()\\"`/]+|\.(?!\d)`）。分かち書きをしないため、空白の無い日本語文は長い 1 トークンとして索引され、文中の部分語での一致は期待できない（英字語・空白区切り語・見出し単位では見つかる見込み）。ブラウザでの実検索は未実施。改善は後続 spec
+
 ## References
 - [Zensical Basics](https://zensical.org/docs/setup/basics/) — 設定項目、`docs_dir` / `site_dir` / `exclude_docs`
 - [Create your site](https://zensical.org/docs/create-your-site/) — プロジェクト構成、`site_url`
