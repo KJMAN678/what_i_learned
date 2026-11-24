@@ -1,0 +1,10 @@
+version: 2
+updates:
+  # SHA で固定した action を、新しい版の SHA に更新する PR を出す
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # 公開から 7 日たった版だけを対象にする（pyproject の exclude-newer = "1 week" と同じ考え方）
+    cooldown:
+      default-days: 7

@@ -387,18 +387,20 @@ language = "ja"
 
 ##### Batch / Job Contract
 - Trigger: `push`（branches: `main`）と `workflow_dispatch`
-- Permissions: `contents: read`、`pages: write`、`id-token: write`
+- Permissions: ワークフロー既定は `{}`（権限なし）。ジョブごとに最小限を与える
 - Concurrency: group `pages`、`cancel-in-progress: false`
-- Job `deploy`（`ubuntu-latest`、environment `github-pages`）の段:
-  1. `actions/checkout`
-  2. `astral-sh/setup-uv`
+- Job `build`（`ubuntu-latest`、権限 `contents: read` のみ）の段:
+  1. `actions/checkout`（`persist-credentials: false`）
+  2. `astral-sh/setup-uv`（uv の版を固定、キャッシュ無効）
   3. `uv sync --frozen`（ロックファイルと不一致なら失敗）
   4. `uv run pytest`
   5. `./scripts/build.sh`
-  6. `actions/configure-pages`
-  7. `actions/upload-pages-artifact`（path: `site`）
+  6. `actions/upload-pages-artifact`（path: `site`）
+- Job `deploy`（`needs: build`、environment `github-pages`、権限 `pages: write`・`id-token: write`）の段:
+  7. `actions/configure-pages`
   8. `actions/deploy-pages`
-- Recovery: 1〜7 のいずれかが失敗すると 8 に到達せず、Pages は直前の公開内容のまま（6.4）
+- サプライチェーン対策: action はすべてコミット SHA で固定し、版はコメントで残す。リポジトリのコードと依存を実行するのは `build` だけで、Pages への書き込み権限を持つ `deploy` は公式 action しか動かさない
+- Recovery: `build` のいずれかの段が失敗すると `deploy` は実行されず、Pages は直前の公開内容のまま（6.4）
 - Zensical のビルドキャッシュは CI でキャッシュしない（公式が現時点で非推奨）
 - 前提: リポジトリの Pages の Source が「GitHub Actions」であること（オーナー作業、手順書に記載）
 
