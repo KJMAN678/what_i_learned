@@ -1,0 +1,12 @@
+[project]
+site_name = "What I Learned"
+site_url = "https://kjman678.github.io/what_i_learned/"
+docs_dir = "content"
+site_dir = "site"
+# use_directory_urls は既定 true のまま（logs/2026-11-23/ 形式の URL）
+# nav は書かない（site-design が所有する。それまではフォルダ構造からの既定ナビ）
+
+[project.theme]
+language = "ja"
+
+[project.plugins.tags]
