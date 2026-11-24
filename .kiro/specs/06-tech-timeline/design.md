@@ -84,9 +84,9 @@ graph TB
 
 | Layer | Choice / Version | Role in Feature | Notes |
 |-------|------------------|-----------------|-------|
-| Generator / Index | Python 3.12 標準ライブラリ | 正規化・集計・描画 | 新規依存なし |
+| Generator / Index | Python 3.14 標準ライブラリ | 正規化・集計・描画 | 新規依存なし |
 | Shared | `wil.records`、`wil.generated`（上流） | 読み取り・書き出し | 再実装しない |
-| Site | Zensical `==0.1.3`（上流で固定） | 生成ページのビルド、組み込み検索・tags | `nav` 末尾に 1 項目（site-design のナビ契約）のみ追記 |
+| Site | Zensical `==0.1.1`（上流で固定） | 生成ページのビルド、組み込み検索・tags | `nav` 末尾に 1 項目（site-design のナビ契約）のみ追記 |
 | Test | pytest（上流 dev 依存） | 単体テスト | CI の既存 `uv run pytest` |
 
 ## File Structure Plan

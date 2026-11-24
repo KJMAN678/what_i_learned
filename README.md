@@ -46,5 +46,6 @@ tags: [aws]      # 可
 
 1. 依存を入れる: `uv sync`
 2. コミット前検査を有効にする: `uv run pre-commit install`
-3. GitHub のリポジトリ設定 → Pages → Source を「GitHub Actions」に切り替える
-4. `scripts/build.sh` を実行権付きでコミットする。`git add` 後に `git ls-files -s scripts/build.sh` が `100755` で始まることを確認し、違えば `git update-index --chmod=+x scripts/build.sh`
+3. コミット前検査のフックを取得する（初回に 1 回）: `uv run pre-commit install-hooks`
+4. GitHub のリポジトリ設定 → Pages → Source を「GitHub Actions」に切り替える
+5. `scripts/build.sh` を実行権付きでコミットする。`git add` 後に `git ls-files -s scripts/build.sh` が `100755` で始まることを確認し、違えば `git update-index --chmod=+x scripts/build.sh`

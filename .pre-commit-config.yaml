@@ -22,7 +22,7 @@ repos:
         entry: uv run python -m wil.records
         files: ^content/
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.17.6
+    rev: v0.17.5
     hooks:
       - id: ruff-check
         types_or: [python, pyi]

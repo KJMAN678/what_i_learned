@@ -71,7 +71,7 @@ graph TB
 | Layer | Choice / Version | Role in Feature | Notes |
 |-------|------------------|-----------------|-------|
 | Agent runtime | Claude Code project skill | 対話手順の実行 | `.claude/skills/wil-log/SKILL.md` |
-| Helper | Python 3.12、標準ライブラリ（`unicodedata`, `collections`） | tags 一覧と表記ゆれ候補 | `src/wil/log_tags.py` |
+| Helper | Python 3.14、標準ライブラリ（`unicodedata`, `collections`） | tags 一覧と表記ゆれ候補 | `src/wil/log_tags.py` |
 | Upstream | `wil.records`（daily-log-page） | 読み取り・検証 | 変更しない |
 | Test | pytest（既存 dev 依存） | 補助 CLI の単体テスト | `tests/test_log_tags.py` |
 

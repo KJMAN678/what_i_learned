@@ -49,7 +49,7 @@
   - **uv の symlink link-mode は非対応**
   - PyPI 最新 `0.1.3`、`requires_python >=3.11`。依存: `click, jinja2, markdown, pathspec, pygments, pymdown-extensions, pyyaml>=6.0.2, tomli, zensical-ui==0.0.43`
   - 依頼文では「0.1.0（2026-11）」とされていたが、調査時点の PyPI 最新は 0.1.3。差異を記録する
-- **Implications**: `pyproject.toml` で `zensical==0.1.3` と完全一致で固定し、`uv.lock` をコミットする。別の版に上げる場合は、先に設計（技術スタックの版）を改訂してから固定し直す（バージョン更新は Revalidation Trigger）。`wil.records` の frontmatter 解析に使う PyYAML は Zensical の推移的依存として既に入るが、`wil` が直接使うため `pyyaml` を直接依存として明示する
+- **Implications**: （当初）`pyproject.toml` で `zensical==0.1.3` と完全一致で固定し、`uv.lock` をコミットする。別の版に上げる場合は、先に設計（技術スタックの版）を改訂してから固定し直す（バージョン更新は Revalidation Trigger）。`wil.records` の frontmatter 解析に使う PyYAML は Zensical の推移的依存として既に入るが、`wil` が直接使うため `pyyaml` を直接依存として明示する
 
 ### frontmatter・タイトル・タグ
 - **Sources Consulted**: https://zensical.org/docs/authoring/frontmatter/ , https://zensical.org/docs/setup/tags/ , https://zensical.org/docs/setup/navigation/ , 第三者ミラーの title 優先順位記述（Web 検索結果）
@@ -135,6 +135,13 @@
 - サブパス: ルート絶対パスは `404.html` のみで、すべて `/what_i_learned/` 接頭辞付き（`site_url` 由来）。`"/assets` 形式は無い。他ページは相対パス
 - キャッシュ: Zensical はリポジトリ直下に `.cache/` を作る（中に `*` だけの `.gitignore` を自前で置くため元々 untracked には出ない）。明示のため `.gitignore` に `.cache/` を追加
 - 日本語検索の品質（記録のみ）: `search.json` の config は `lang: ["ja"]`、区切りは空白・記号のみ（`[\s\-_,:!=\[\]()\\"`/]+|\.(?!\d)`）。分かち書きをしないため、空白の無い日本語文は長い 1 トークンとして索引され、文中の部分語での一致は期待できない（英字語・空白区切り語・見出し単位では見つかる見込み）。ブラウザでの実検索は未実施。改善は後続 spec
+
+## 版の変更: Zensical 0.1.1 / Python 3.14（2026-11-24）
+- **Context**: 当初は調査時点の PyPI 最新 `zensical==0.1.3` と Python 3.12 で固定した。その後オーナーが uv の `exclude-newer = "1 week"`（公開から 1 週間未満の版を使わない）を導入し、ロックが `zensical==0.1.1`・Python 3.14 に変わった
+- **Decision**: オーナー判断で 0.1.1 / 3.14 を正とし、設計（技術スタック・ProjectConfig・6.6 の対応表）と下流 spec の版表記を合わせて改訂した。他の依存もすべて完全一致で固定する
+- **再確認**: 0.1.1 / Python 3.14.10 で `./scripts/build.sh` と pytest が成功。4.2 の確認項目（`lang="ja"`、H1 なしログのタイトル「2026 11 23」、tags 表示、検索 UI、`<h2>`・`<pre>`、サブパス）を再実行し、0.1.3 と同じ結果
+- **未確認**: 04-site-design の nav 挙動（`nav` 外ページで `--strict` が成功すること）は 0.1.3 での調査。04 の実装時に 0.1.1 で確かめる
+- **注意**: `uv.lock` の取得元 URL が PyPI ではなくミラー（pypi.flatt.tech）になっている。CI（GitHub Actions）の `uv sync --frozen` がそのホストに届くことを確認する
 
 ## References
 - [Zensical Basics](https://zensical.org/docs/setup/basics/) — 設定項目、`docs_dir` / `site_dir` / `exclude_docs`

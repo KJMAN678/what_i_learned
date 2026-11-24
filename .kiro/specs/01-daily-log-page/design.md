@@ -89,8 +89,8 @@ graph TB
 
 | Layer | Choice / Version | Role in Feature | Notes |
 |-------|------------------|-----------------|-------|
-| Site generator | Zensical `==0.1.3`（完全一致で固定） | Markdown → 静的 HTML、組み込み検索・tags | 調査時点の PyPI 最新。依頼文の 0.1.0 とは差異あり（research.md）。uv の symlink link-mode は使わない |
-| Runtime | Python 3.12（`.python-version`） | `wil` とツール実行 | Zensical は `>=3.11` |
+| Site generator | Zensical `==0.1.1`（完全一致で固定） | Markdown → 静的 HTML、組み込み検索・tags | オーナー判断で 0.1.1 に固定（uv の `exclude-newer = "1 week"` 運用。research.md）。uv の symlink link-mode は使わない |
+| Runtime | Python 3.14（`.python-version`、`requires-python = ">=3.14,<3.15"`） | `wil` とツール実行 | Zensical は `>=3.11` |
 | Package / env | uv、`pyproject.toml` + `uv.lock`、ビルドバックエンド `uv_build` | 依存固定、`src/wil` のインストール | CI は `uv sync --frozen` |
 | Parsing | PyYAML `>=6.0.2`（直接依存として明示） | frontmatter の解析（`yaml.safe_load`） | Zensical の推移的依存と同じ |
 | Test / lint | pytest、ruff | 単体テスト、lint/format | dev 依存グループ |
@@ -105,7 +105,7 @@ graph TB
 ├── zensical.toml                 # サイト設定（site_url, docs_dir, site_dir, language, tags）
 ├── pyproject.toml                # プロジェクト定義、依存、wil パッケージ、pytest/ruff 設定
 ├── uv.lock                       # 依存のロック（コミットする）
-├── .python-version               # 3.12
+├── .python-version               # 3.14
 ├── .gitignore                    # 生成物・環境・キャッシュ・秘密情報・旧 Astro 生成物
 ├── .pre-commit-config.yaml       # コミット前検査の定義
 ├── README.md                     # 書き方の手順書（公開されない）
@@ -196,7 +196,7 @@ sequenceDiagram
 | 6.2, 6.3 | 検証失敗・ビルド失敗・リンク切れで中止 | BuildScript | `set -eu`, `--strict` | デプロイ |
 | 6.4 | 失敗時は直前の公開を維持 | DeployWorkflow | deploy 段に到達しない | デプロイ |
 | 6.5 | 単一ビルド手順と生成段 | BuildScript | `scripts/build.sh` | ビルド |
-| 6.6 | バージョン固定 | ProjectConfig | `zensical==0.1.3`, `uv.lock`, `uv sync --frozen` | — |
+| 6.6 | バージョン固定 | ProjectConfig | `zensical==0.1.1`, `uv.lock`, `uv sync --frozen` | — |
 | 7.1–7.5 | 下流向け読み取り | Records | `load_records`, `Record`, `Section` | — |
 | 7.6 | 自動テスト | RecordsTests | `tests/test_records.py` | — |
 | 8.1, 8.2, 8.4 | 手順書（非公開） | Guide | `README.md`（`content/` 外） | — |
@@ -429,11 +429,12 @@ language = "ja"
 - 無視対象: `site/`、Zensical のキャッシュディレクトリ（名前は実装時に初回ビルドで確認して追記）、`.venv/`、`__pycache__/`、`*.py[cod]`、`.pytest_cache/`、`.ruff_cache/`、`dist/`、`node_modules/`、`.astro/`、`.env`、`.env.*`、`.DS_Store`（4.4）
 
 #### ProjectConfig（`pyproject.toml` ほか）
-- `[project]` name `what-i-learned`、`requires-python = ">=3.12"`、dependencies `["pyyaml>=6.0.2"]`
-- `[dependency-groups] dev = ["zensical==0.1.3", "pytest", "ruff", "pre-commit"]`（`uv sync` で既定導入）
+- `[project]` name `wil`、`requires-python = ">=3.14,<3.15"`、dependencies `["pyyaml==6.0.3"]`
+- `[dependency-groups] dev = ["zensical==0.1.1", "pytest==9.2.0", "ruff==0.17.5", "pre-commit==4.7.0"]`（`uv sync` で既定導入。すべて完全一致で固定）
+- `[tool.uv] exclude-newer = "1 week"`（公開から 1 週間未満の版は解決に使わない）
 - `[build-system]` `uv_build`、`[tool.uv.build-backend] module-name = "wil"`（`src/wil` を import 可能にする）
 - `[tool.pytest.ini_options] testpaths = ["tests"]`
-- `.python-version`: `3.12`
+- `.python-version`: `3.14`
 - uv の `link-mode = "symlink"` は設定しない（Zensical 非対応）
 
 #### Guide（`README.md`）

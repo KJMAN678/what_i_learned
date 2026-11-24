@@ -94,10 +94,10 @@ graph TB
 
 | Layer | Choice / Version | Role in Feature | Notes |
 |-------|------------------|-----------------|-------|
-| Generator | Python 3.12 標準ライブラリ | 一覧 Markdown の生成 | 新規依存なし。上流の `uv` 環境・`pyproject.toml` をそのまま使う |
+| Generator | Python 3.14 標準ライブラリ | 一覧 Markdown の生成 | 新規依存なし。上流の `uv` 環境・`pyproject.toml` をそのまま使う |
 | Shared parser | `wil.records`（daily-log-page） | ログの読み取り | 再実装しない |
 | Build glue | POSIX sh（`scripts/generate.sh`） | 区域の作り直しと生成器の順次実行 | 上流 `build.sh` と同じく `set -eu` |
-| Site generator | Zensical `==0.1.3`（上流で固定） | 生成ページを含めてビルド | 設定変更なし |
+| Site generator | Zensical `==0.1.1`（上流で固定） | 生成ページを含めてビルド | 設定変更なし |
 | Test | pytest（上流 dev 依存） | 単体テスト | CI の既存 `uv run pytest` で実行される |
 
 ## File Structure Plan

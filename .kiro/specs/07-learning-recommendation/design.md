@@ -94,9 +94,9 @@ graph TB
 |-------|------------------|-----------------|-------|
 | Offline generation | Claude Code project skill | 要約・提案の作成、承認の対話、データの書き込み | オーナーの手元のセッションで動く。鍵をリポジトリに置かない |
 | Data | JSON（UTF-8、標準ライブラリ `json`） | 技術ごとのおすすめデータ | `data/learning-recommendation/`、コミットする |
-| Generator / CLI | Python 3.12 標準ライブラリ | 読み取り・検査・描画・`status` | 新規依存なし |
+| Generator / CLI | Python 3.14 標準ライブラリ | 読み取り・検査・描画・`status` | 新規依存なし |
 | Shared | `wil.records`、`wil.generated`、`wil.tech_timeline`（上流） | ログ・書き出し・技術インデックス | 再実装しない |
-| Site | Zensical `==0.1.3`（上流で固定） | 生成ページのビルド | `nav` 末尾に 1 項目（site-design のナビ契約）のみ追記 |
+| Site | Zensical `==0.1.1`（上流で固定） | 生成ページのビルド | `nav` 末尾に 1 項目（site-design のナビ契約）のみ追記 |
 | Test | pytest（上流 dev 依存） | 単体テスト | CI の既存 `uv run pytest` |
 
 起動方法の選定理由（詳細は `research.md`）: ローカルスクリプトで API を直接呼ぶ方式は、手元の鍵管理と SDK 依存の追加、承認の対話の自作が必要になる。Claude Code の skill はオーナーが普段使うセッションで動き、鍵がリポジトリにもスクリプトにも現れず、案の提示 → 修正 → 承認がそのまま使える。log-writing-skill と同じ「skill + 決定的な補助 CLI」の分担に揃える。

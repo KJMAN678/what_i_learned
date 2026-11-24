@@ -10,7 +10,7 @@
 
 ## Core Technologies
 
-- **Language**: Python 3.12+
+- **Language**: Python 3.14
 - **Site generator**: Zensical（pre-1.0。バージョンを固定する）
 - **Package / env**: uv（`pyproject.toml` + `uv.lock`）
 - **Hosting**: GitHub Pages（GitHub Actions でビルド・デプロイ）
@@ -36,7 +36,7 @@
 ## Development Environment
 
 ### Required Tools
-- uv, Python 3.12+, git, pre-commit
+- uv, Python 3.14, git, pre-commit
 
 ### Common Commands
 ```bash

@@ -24,7 +24,7 @@
   - 戻り値: dataclass / TypedDict / pydantic モデル / `dict[str, ...]` は `structured_content` にそのまま入り、テキスト `content` も併せて返る。戻り値注釈が `output_schema` になり、出力は検証される
   - エラー: `from mcp.server.mcpserver.exceptions import ToolError`。`ToolError("msg")` は `is_error=True`、本文「Error executing tool <name>: msg」でモデルに見える。それ以外の例外はメッセージが隠される（「Error executing tool <name>」のみ）。エラー文字列を通常の戻り値で返すと `is_error=False` になる
   - 実行: `server.run()` の既定トランスポートは stdio。stdout はプロトコル専用。ログは `logging`（stderr）に出す
-  - Python: PyPI 上は `>=3.10`、ドキュメントは 3.11+。どちらでも 3.12 で問題ない
+  - Python: PyPI 上は `>=3.10`、ドキュメントは 3.11+。どちらでも 3.14（上流の固定版）で問題ない
   - `mcp[cli]` extra は `mcp dev` 等の CLI 用で、自前で `run()` を呼ぶサーバーには不要（明記はないが extra の内容から導出）
   - テスト: `Client(server)` でトランスポート無しのインプロセス呼び出しができる（`async with Client(server, raise_exceptions=True) as c: await c.call_tool(...)`）。v1 の `create_connected_server_and_client_session` は削除。anyio の pytest プラグイン（`@pytest.mark.anyio` + `anyio_backend` fixture）を使う
 - **Implications**:

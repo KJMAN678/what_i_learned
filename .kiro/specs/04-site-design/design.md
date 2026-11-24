@@ -17,7 +17,7 @@
 - テンプレート上書き（`custom_dir`）、独自 JS（`extra_javascript`）、Web フォント
 - 生成ページの置き場所・ファイル名の変更（各生成 spec の所有。本 spec はナビの区分名と並びだけを決める）
 - ロゴ・ファビコン・ブランド制作、検索品質の改善
-- Zensical の版の変更（上流の固定 `==0.1.3` のまま）
+- Zensical の版の変更（上流の固定 `==0.1.1` のまま）
 
 ## Boundary Commitments
 
@@ -39,7 +39,7 @@
 - タグの正規化、検索
 
 ### Allowed Dependencies
-- Zensical（上流で固定済み `==0.1.3`）の組み込みテーマ機能: 配色（`palette`）、書体（`font`）、機能フラグ（`features`）、`extra_css`、テーマの CSS 変数（`--md-text-font`、`--md-code-font`、`--md-typeset-a-color`、`--md-accent-fg-color` など）
+- Zensical（上流で固定済み `==0.1.1`）の組み込みテーマ機能: 配色（`palette`）、書体（`font`）、機能フラグ（`features`）、`extra_css`、テーマの CSS 変数（`--md-text-font`、`--md-code-font`、`--md-typeset-a-color`、`--md-accent-fg-color` など）
 - Python 標準ライブラリ `tomllib`（テストのみ）と、上流の `wil.records.ALLOWED_PATTERNS`（テストで参照）
 - 新規の外部依存は追加しない。外部サーバー（Web フォント・CDN）に依存しない
 - 依存方向: 本 spec の CSS は生成 HTML の本文領域と要素型にのみ依存し、特定ページの構造には依存しない
@@ -105,7 +105,7 @@ graph LR
 
 | Layer | Choice / Version | Role in Feature | Notes |
 |-------|------------------|-----------------|-------|
-| Site generator | Zensical `==0.1.3`（上流で固定） | テーマ、配色切り替え、上部へ戻る、前後リンク、追加 CSS の読み込み | 既定の `modern` バリアント。版は変えない |
+| Site generator | Zensical `==0.1.1`（上流で固定） | テーマ、配色切り替え、上部へ戻る、前後リンク、追加 CSS の読み込み | 既定の `modern` バリアント。版は変えない |
 | Styling | CSS（1 ファイル、プリプロセッサなし） | 書体変数、行間、入れ子リスト、リンク下線、フォーカス枠、タグのラベル | テーマの CSS 変数を使い、両配色に自動で追従させる |
 | Fonts | 端末のシステム書体 | 日本語本文・等幅 | `font = false`。Web フォントなし |
 | Test | pytest、標準 `tomllib` | 設定の回帰検査 | 新規依存なし |
@@ -285,7 +285,7 @@ nav = [
 ##### `--strict` と gitignore された生成ページ
 - `nav` の参照先は、ビルド時点の `docs_dir`（ディスク上のファイル）で解決される。git の追跡状況は関係しない
 - `scripts/build.sh` と CI は常に「生成 → `zensical build --clean --strict`」の順で動くため、ビルド時点で `generated/*.md` は存在する
-- `nav` に無いページ（ログ等）は警告にならず、`--strict` は成功する（固定版 0.1.3 で確認。research.md）。もし将来の版で報告されるようになった場合は、公式の `not_in_nav` で `logs/` 等を指定して抑える
+- `nav` に無いページ（ログ等）は警告にならず、`--strict` は成功する（調査は 0.1.3 で確認。上流の固定が 0.1.1 に変わったため、実装時のビルド確認で 0.1.1 でも成り立つか確かめる。research.md）。もし将来の版で報告されるようになった場合は、公式の `not_in_nav` で `logs/` 等を指定して抑える
 - 逆に、生成ページが無いと項目は黙って無効なリンクになる。pytest は生成前に動くため参照先の存在は検査せず、形だけを検査する（SiteDesignTests）。存在は実装タスクのビルド確認で見る
 
 **Implementation Notes**

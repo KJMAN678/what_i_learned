@@ -75,7 +75,7 @@ graph LR
 
 | Layer | Choice / Version | Role in Feature | Notes |
 |-------|------------------|-----------------|-------|
-| Runtime | Python 3.12（既存） | サーバーとロジック | 上流で固定 |
+| Runtime | Python 3.14（既存） | サーバーとロジック | 上流で固定 |
 | MCP | `mcp>=2.3,<3`（`from mcp.server import MCPServer`） | stdio サーバー、ツール登録、入力スキーマ、構造化出力、エラー表現 | brief の「FastMCP」は 2.x で `MCPServer` に改名された同じ公式 API。単体 `fastmcp` パッケージは不採用（research.md） |
 | Parsing | `wil.records`（上流） | ログ読み取り | 再実装しない |
 | Config read | `tomllib`（標準） | `zensical.toml` の `site_url` | 追加依存なし |

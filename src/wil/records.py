@@ -1,5 +1,6 @@
 """ログ形式の唯一の定義: 型・パース・検証。"""
 
+import os
 import re
 import sys
 from collections.abc import Iterable
@@ -34,17 +35,22 @@ class Record:
     sections: tuple[Section, ...]
 
 
-HEADING = re.compile(r"(#{1,6})(?:[ \t]+(.*?))?[ \t]*")
+HEADING = re.compile(r"(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*")
+FENCE = re.compile(r"(`{3,}|~{3,})")
 
 
 def _split_sections(body: str) -> tuple[Section, ...]:
     sections: list[Section] = []
     level, title, chunk = 0, "", []
-    in_fence = False
+    fence = ""  # 開いているフェンスの記号列。空なら外側
     for line in body.splitlines(keepends=True):
-        if line.startswith(("```", "~~~")):
-            in_fence = not in_fence
-        m = None if in_fence else HEADING.fullmatch(line.rstrip("\r\n"))
+        f = FENCE.match(line)
+        if f:
+            if not fence:
+                fence = f[1]
+            elif f[1][0] == fence[0] and len(f[1]) >= len(fence):
+                fence = ""
+        m = None if fence else HEADING.fullmatch(line.rstrip("\r\n"))
         if m is None:
             chunk.append(line)
             continue
@@ -77,6 +83,8 @@ def parse_record(path: Path) -> Record:
         text = path.read_text(encoding="utf-8")
     except UnicodeDecodeError:
         fail("UTF-8 として読み取れません")
+    except OSError as e:
+        fail(f"ファイルを読み取れません（{e.strerror}）")
 
     lines = text.splitlines(keepends=True)
     fences = [i for i, line in enumerate(lines) if line.rstrip("\r\n") == "---"]
@@ -140,15 +148,27 @@ def load_records(content_dir: Path = CONTENT_DIR) -> list[Record]:
 def check_paths(
     paths: Iterable[Path], content_dir: Path = CONTENT_DIR
 ) -> list[RecordError]:
-    root = content_dir.resolve()
+    # シンボリックリンクをたどらずに位置を判定する（resolve すると、content 内の
+    # リンクの実体が外にあるとき「公開ディレクトリ外」として素通りしてしまう）
+    root = Path(os.path.abspath(content_dir))
     errors: list[RecordError] = []
     for path in paths:
         try:
-            rel = path.resolve().relative_to(root)
+            rel = Path(os.path.abspath(path)).relative_to(root)
         except ValueError:
             continue  # 公開ディレクトリ外
-        if any(part.startswith(".") for part in rel.parts) or not path.is_file():
-            continue  # ドットファイル・削除済み・ディレクトリ
+        if any(part.startswith(".") for part in rel.parts):
+            continue  # ドットファイル・ドットディレクトリ
+        if any(
+            (root.joinpath(*rel.parts[: i + 1])).is_symlink()
+            for i in range(len(rel.parts))
+        ):
+            errors.append(
+                RecordError(path, "シンボリックリンクは公開ディレクトリに置けません")
+            )
+            continue
+        if not path.is_file():
+            continue  # 削除済み・ディレクトリ
         name = rel.as_posix()
         if not any(re.fullmatch(p, name) for p in ALLOWED_PATTERNS):
             errors.append(
@@ -168,6 +188,14 @@ def check_paths(
 
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
+    if not args and not CONTENT_DIR.is_dir():
+        # 実行場所が違うと何も検査せずに成功してしまうので、失敗にする
+        print(
+            f"{CONTENT_DIR}: 公開ディレクトリが見つかりません"
+            "（リポジトリルートで実行してください）",
+            file=sys.stderr,
+        )
+        return 1
     paths = [Path(a) for a in args] if args else sorted(CONTENT_DIR.rglob("*"))
     errors = check_paths(paths)
     for e in errors:

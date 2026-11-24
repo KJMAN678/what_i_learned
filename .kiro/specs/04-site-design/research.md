@@ -108,7 +108,7 @@
 - **Implications**: タグの見た目を整える CSS のセレクタは、実装時に生成 HTML を確認して決める。クラス名は他 spec との契約に含めない
 
 ### 固定版との差
-- **Context**: 上流は `zensical==0.1.3` に完全一致で固定。参照した公式ドキュメントは調査時点の最新版の記述
+- **Context**: 上流は調査時点で `zensical==0.1.3` に完全一致で固定（2026-11-24 にオーナー判断で `==0.1.1` に変更。本 spec の 0.1.3 での確認結果は、実装時に 0.1.1 で再確認する）。参照した公式ドキュメントは調査時点の最新版の記述
 - **Findings**: ドキュメントに版ごとの対応表は無い
 - **Implications**: 次の項目は固定版での最初のビルドで確認し、失敗時の代替を決めておく。固定版は上げない（版の更新は daily-log-page の Revalidation Trigger）
   - `toggle.icon` の `lucide/sun` / `lucide/moon`: ビルド失敗時は `fontawesome/solid/sun` / `fontawesome/solid/moon` に替える（fontawesome はフッターの例で同梱が示されている）

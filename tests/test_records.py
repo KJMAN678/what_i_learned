@@ -307,3 +307,51 @@ def test_main_without_args_checks_whole_content(tmp_path, monkeypatch, capsys):
 def test_main_on_real_content_exits_0(monkeypatch):
     monkeypatch.chdir(Path(__file__).resolve().parents[1])
     assert main([]) == 0
+
+
+def test_main_without_args_fails_when_content_dir_is_missing(
+    tmp_path, monkeypatch, capsys
+):
+    monkeypatch.chdir(tmp_path)
+    assert main([]) == 1
+    assert "公開ディレクトリが見つかりません" in capsys.readouterr().err
+
+
+def test_check_paths_rejects_symlinks_even_when_target_is_outside(tmp_path):
+    content = make_content(tmp_path)
+    outside = write(tmp_path, "secret.md", VALID)
+    link = content / "logs" / "2026-11-24.md"
+    link.symlink_to(outside)
+    errors = check_paths([link], content)
+    assert [e.reason for e in errors] == [
+        "シンボリックリンクは公開ディレクトリに置けません"
+    ]
+
+
+def test_check_paths_rejects_files_under_a_symlinked_directory(tmp_path):
+    content = make_content(tmp_path)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    write(elsewhere, "2026-11-24.md", VALID)
+    (content / "linked").symlink_to(elsewhere, target_is_directory=True)
+    errors = check_paths([content / "linked" / "2026-11-24.md"], content)
+    assert len(errors) == 1
+
+
+def test_unreadable_log_is_a_record_error_not_an_oserror(tmp_path):
+    content = make_content(tmp_path)
+    (content / "logs" / "2026-11-24.md").mkdir()
+    with pytest.raises(RecordsInvalid) as info:
+        load_records(content)
+    assert "読み取れません" in info.value.errors[0].reason
+
+
+def test_fence_closes_only_with_same_marker_and_length():
+    body = "## A\n````md\n```\n# not heading\n```\n# still inside\n````\n## B\n"
+    sections = _split_sections(body)
+    assert [(s.level, s.title) for s in sections] == [(2, "A"), (2, "B")]
+
+
+def test_closing_hashes_are_not_part_of_the_title():
+    assert _split_sections("## Foo ##\nx\n") == (Section(2, "Foo", "x\n"),)
+    assert _split_sections("# C#\n") == (Section(1, "C#", ""),)
