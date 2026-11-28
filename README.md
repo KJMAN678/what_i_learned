@@ -40,6 +40,8 @@ tags: [aws]      # 可
 | コミット前検査を全件に実行 | `uv run pre-commit run --all-files` |
 | ビルド（検証込み、`site/` に出力） | `./scripts/build.sh` |
 
+(WIP) 実装の解説は `docs/implementation.html`。ビルド時に `site/` へコピーされ、https://kjman678.github.io/what_i_learned/implementation.html で公開される。
+
 公開は `main` に push するだけ。GitHub Actions がテスト・ビルドのあと GitHub Pages にデプロイする。途中で失敗した場合、公開内容は前回のまま。
 
 ## オーナーの初回作業

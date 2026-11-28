@@ -10,3 +10,6 @@ uv run python -m wil.records
 
 # 3. ビルド
 uv run zensical build --clean --strict
+
+# 4. 付録: 実装の解説ページ（content/ の許可リストを広げずに公開するため、ビルド後にコピー）
+# cp docs/implementation.html site/implementation.html

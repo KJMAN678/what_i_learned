@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>実装の解説 — What I Learned（01-daily-log-page）</title>
+<style>
+  :root {
+    --bg: #fafaf9; --fg: #1c1917; --muted: #57534e; --line: #d6d3d1;
+    --card: #ffffff; --accent: #0f766e; --accent-bg: #ccfbf1; --warn-bg: #fef3c7;
+    --code-bg: #f5f5f4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1917; --fg: #f5f5f4; --muted: #a8a29e; --line: #44403c;
+      --card: #292524; --accent: #5eead4; --accent-bg: #134e4a; --warn-bg: #422006;
+      --code-bg: #0c0a09;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 16px/1.8 system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  }
+  main { max-width: 860px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 { font-size: 1.8rem; line-height: 1.3; margin: 0 0 8px; }
+  h2 { font-size: 1.35rem; margin: 56px 0 12px; padding-top: 8px; border-top: 1px solid var(--line); }
+  h3 { font-size: 1.1rem; margin: 28px 0 8px; }
+  a { color: var(--accent); }
+  .lead { color: var(--muted); margin: 0 0 24px; }
+  code { font: 0.9em ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; overflow-x: auto; line-height: 1.55; }
+  pre code { background: none; padding: 0; }
+  nav.toc { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 20px; }
+  nav.toc ol { margin: 0; padding-left: 1.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 0.95rem; }
+  th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--card); }
+  .note { background: var(--accent-bg); border-radius: 8px; padding: 10px 14px; margin: 16px 0; }
+  .warn { background: var(--warn-bg); border-radius: 8px; padding: 10px 14px; margin: 16px 0; }
+  /* フロー図（CSS だけで描く。外部ライブラリを読み込まない） */
+  .flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 6px; margin: 16px 0; }
+  .flow .step { flex: 1 1 140px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 0.9rem; line-height: 1.5; }
+  .flow .step b { display: block; color: var(--accent); margin-bottom: 4px; }
+  .flow .arrow { align-self: center; color: var(--muted); font-size: 1.2rem; }
+  .layers { display: grid; gap: 6px; margin: 16px 0; }
+  .layers div { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 6px; padding: 8px 12px; font-size: 0.93rem; }
+  footer { margin-top: 64px; color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>実装の解説：1 日 1 ページの学習ログ公開（01-daily-log-page）</h1>
+<p class="lead">
+  手書きの Markdown を GitHub Pages に公開する最小構成と、意図しないファイルを公開しないための検査の仕組みを、コードに沿って解説します。
+  ソースは <a href="https://github.com/KJMAN678/what_i_learned">KJMAN678/what_i_learned</a>、仕様は
+  <a href="https://github.com/KJMAN678/what_i_learned/tree/main/.kiro/specs/01-daily-log-page"><code>.kiro/specs/01-daily-log-page/</code></a> にあります。
+</p>
+
+<nav class="toc" aria-label="目次">
+  <ol>
+    <li><a href="#overview">全体像</a></li>
+    <li><a href="#files">ファイル構成</a></li>
+    <li><a href="#format">ログ形式</a></li>
+    <li><a href="#records">wil.records：パースと検証</a></li>
+    <li><a href="#guard">公開事故を防ぐ多層の検査</a></li>
+    <li><a href="#build">ビルド手順 build.sh</a></li>
+    <li><a href="#deploy">公開ワークフロー deploy.yml</a></li>
+    <li><a href="#tests">テスト</a></li>
+    <li><a href="#extension">後続 spec の差し込み点</a></li>
+  </ol>
+</nav>
+
+<h2 id="overview">1. 全体像</h2>
+<p>ログを書いてから公開されるまでの流れです。どの段階で失敗しても、それ以降には進みません。公開に失敗した場合、サイトは前回の内容のままです。</p>
+<div class="flow" role="list">
+  <div class="step" role="listitem"><b>① 書く</b><code>content/logs/YYYY-MM-DD.md</code> を作る</div>
+  <div class="arrow" aria-hidden="true">→</div>
+  <div class="step" role="listitem"><b>② コミット</b>pre-commit が秘密情報・<code>.env</code>・ログ形式を検査</div>
+  <div class="arrow" aria-hidden="true">→</div>
+  <div class="step" role="listitem"><b>③ push</b><code>main</code> への push で GitHub Actions が起動</div>
+  <div class="arrow" aria-hidden="true">→</div>
+  <div class="step" role="listitem"><b>④ build ジョブ</b>pytest → <code>build.sh</code>（検証 → Zensical ビルド）</div>
+  <div class="arrow" aria-hidden="true">→</div>
+  <div class="step" role="listitem"><b>⑤ deploy ジョブ</b><code>site/</code> を GitHub Pages へ</div>
+</div>
+<p>サイト生成には <strong>Zensical</strong>（Material for MkDocs の後継）を使います。Zensical の設定（<code>zensical.toml</code>）は <code>content/</code> を入力、<code>site/</code> を出力とし、ログは blog プラグインではなく通常のページとして 1 ファイル = 1 ページで出力します（blog プラグインは frontmatter に <code>date</code> を要求し、書く手間が増えるため）。</p>
+
+<h2 id="files">2. ファイル構成</h2>
+<table>
+  <thead><tr><th>パス</th><th>役割</th></tr></thead>
+  <tbody>
+    <tr><td><code>content/</code></td><td>公開ディレクトリ。<code>index.md</code> と <code>logs/YYYY-MM-DD.md</code> だけを置ける</td></tr>
+    <tr><td><a href="https://github.com/KJMAN678/what_i_learned/blob/main/src/wil/records.py"><code>src/wil/records.py</code></a></td><td>ログ形式の唯一の定義。型・パース・検証・CLI</td></tr>
+    <tr><td><a href="https://github.com/KJMAN678/what_i_learned/blob/main/scripts/build.sh"><code>scripts/build.sh</code></a></td><td>手元と CI で共通の唯一のビルド手順</td></tr>
+    <tr><td><a href="https://github.com/KJMAN678/what_i_learned/blob/main/.github/workflows/deploy.yml"><code>.github/workflows/deploy.yml</code></a></td><td>テスト → ビルド → Pages へのデプロイ</td></tr>
+    <tr><td><a href="https://github.com/KJMAN678/what_i_learned/blob/main/.pre-commit-config.yaml"><code>.pre-commit-config.yaml</code></a></td><td>コミット前の検査（gitleaks、秘密鍵、巨大ファイル、<code>.env</code>、ログ形式、ruff）</td></tr>
+    <tr><td><a href="https://github.com/KJMAN678/what_i_learned/blob/main/zensical.toml"><code>zensical.toml</code></a></td><td>サイト名・URL・入出力ディレクトリ・言語（<code>ja</code>）・tags プラグイン</td></tr>
+    <tr><td><a href="https://github.com/KJMAN678/what_i_learned/blob/main/tests/test_records.py"><code>tests/test_records.py</code></a></td><td><code>wil.records</code> のテスト</td></tr>
+  </tbody>
+</table>
+
+<h2 id="format">3. ログ形式</h2>
+<p>日付はファイル名から取り、frontmatter の必須項目は <code>tags</code> だけです。書く手間を最小にするための設計です。</p>
+<pre><code>---
+tags:
+  - 技術書
+summary: 技術書を読んだ      # 任意・1 行
+---
+
+## データ指向アプリケーションデザイン 第2版
+
+- 1章を読んだ</code></pre>
+<table>
+  <thead><tr><th>項目</th><th>ルール</th></tr></thead>
+  <tbody>
+    <tr><td>ファイル名</td><td><code>YYYY-MM-DD.md</code> で、暦上存在する日付（<code>2026-02-30.md</code> は不可）</td></tr>
+    <tr><td>文字コード</td><td>UTF-8</td></tr>
+    <tr><td><code>tags</code></td><td>必須。空でない文字列の<strong>リスト</strong>。<code>tags: aws</code> のような単一文字列は不可</td></tr>
+    <tr><td><code>summary</code></td><td>任意。改行を含まない文字列</td></tr>
+    <tr><td>その他のキー</td><td>無視する（エラーにしない）</td></tr>
+  </tbody>
+</table>
+
+<h2 id="records">4. <code>wil.records</code>：パースと検証</h2>
+<p><code>wil.records</code> はログ形式を定義する唯一のモジュールです。一覧ページや MCP など後続の機能は、パーサを再実装せずにここを使います。</p>
+
+<h3>データモデル</h3>
+<pre><code>@dataclass(frozen=True)
+class Record:
+    date: date              # ファイル名から
+    path: Path
+    url_path: str           # "logs/2026-11-23/"
+    tags: tuple[str, ...]
+    summary: str | None
+    body: str               # frontmatter を除いた本文
+    sections: tuple[Section, ...]   # 見出しで区切った本文
+
+@dataclass(frozen=True)
+class Section:
+    level: int   # 0 = 最初の見出しより前, 1..6 = 見出しの階層
+    title: str
+    body: str</code></pre>
+<p>どちらも <code>frozen=True</code> で不変にしてあり、読み取った後に書き換えられることはありません。</p>
+
+<h3><code>parse_record(path)</code>：1 ファイルを読む</h3>
+<p>上から順に検査し、最初に見つかった問題を <code>RecordError(path, reason)</code> として投げます。</p>
+<ol>
+  <li>ファイル名が <code>\d{4}-\d{2}-\d{2}\.md</code> に一致するか</li>
+  <li><code>date.fromisoformat</code> で実在する日付か</li>
+  <li>UTF-8 として読めるか（読めない・I/O エラーも <code>RecordError</code> に変換）</li>
+  <li>先頭行と 2 つ目の <code>---</code> で frontmatter を切り出し、<code>yaml.safe_load</code> で mapping として読めるか</li>
+  <li><code>tags</code>・<code>summary</code> の型と値</li>
+</ol>
+<div class="note"><code>yaml.safe_load</code> を使うため、YAML の任意オブジェクト生成は行われません。</div>
+
+<h3><code>_split_sections(body)</code>：見出しで本文を区切る</h3>
+<p>ATX 見出し（<code>#</code>〜<code>######</code>）の行で本文を <code>Section</code> に分けます。ポイントは 2 つです。</p>
+<ul>
+  <li><strong>コードフェンスの中は見出しとみなさない。</strong> <code>```</code> や <code>~~~</code> で開いたフェンスは、<em>同じ記号で同じ長さ以上</em>の行でだけ閉じます（CommonMark と同じ規則）。シェルのコメント <code># ...</code> が見出しに化けるのを防ぎます。</li>
+  <li><strong>見出し末尾の閉じ <code>#</code> は除く。</strong> <code>## タイトル ##</code> の title は <code>タイトル</code> です。</li>
+</ul>
+<p>最初の見出しより前に空白以外の本文があれば、<code>level=0</code> のセクションとして残します。</p>
+
+<h3><code>load_records(content_dir)</code>：全ログを読む</h3>
+<p><code>content/logs/*.md</code> をすべて読み、日付の昇順で返します。1 件でも不正があれば、<strong>全件のエラーを集めて</strong> <code>RecordsInvalid</code> を投げます。1 件ずつ直して再実行する手間を省くためです。ドットで始まるファイルは対象外です。</p>
+
+<h3><code>check_paths(paths)</code>：公開してよいファイルか</h3>
+<p>pre-commit とビルド前検証の両方から呼ばれる、公開事故防止の中心です。</p>
+<pre><code># content からの相対 POSIX パスに対する正規表現（fullmatch）
+ALLOWED_PATTERNS = (r"index\.md", r"logs/\d{4}-\d{2}-\d{2}\.md")</code></pre>
+<table>
+  <thead><tr><th>パスの状態</th><th>結果</th></tr></thead>
+  <tbody>
+    <tr><td><code>content/</code> の外</td><td>対象外（スキップ）</td></tr>
+    <tr><td>ドットファイル・ドットディレクトリ配下</td><td>対象外（Zensical も公開しない）</td></tr>
+    <tr><td>パスの途中のどこかがシンボリックリンク</td><td><strong>エラー</strong></td></tr>
+    <tr><td>存在しない・ディレクトリ</td><td>対象外（削除のコミットなど）</td></tr>
+    <tr><td><code>ALLOWED_PATTERNS</code> に一致しない</td><td><strong>エラー</strong>（許可リスト方式）</td></tr>
+    <tr><td>ログのパターンに一致</td><td><code>parse_record</code> で形式も検査</td></tr>
+  </tbody>
+</table>
+<div class="warn">
+  位置の判定に <code>Path.resolve()</code> ではなく <code>os.path.abspath</code> を使っているのは意図的です。<code>resolve</code> はリンクをたどるため、<code>content/</code> 内のリンクの実体が外にあると「公開ディレクトリ外」と判定され、素通りしてしまいます。
+</div>
+
+<h3><code>main()</code>：CLI</h3>
+<pre><code>uv run python -m wil.records                 # content/ 全体を検査
+uv run python -m wil.records path1 path2     # 指定ファイルだけ（pre-commit から）</code></pre>
+<p>エラーは <code>path: reason</code> 形式で標準エラーに出し、終了コード 1 を返します。引数なしで <code>content/</code> が見つからないとき（リポジトリルート以外で実行したとき）も失敗にします。何も検査せずに成功するのを防ぐためです。</p>
+
+<h2 id="guard">5. 公開事故を防ぐ多層の検査</h2>
+<p>リポジトリもサイトも公開なので、意図しないファイルが出ないよう、複数の段階で同じ方向の検査を重ねています。</p>
+<div class="layers">
+  <div><strong>.gitignore</strong> — <code>site/</code>、キャッシュ、<code>.venv/</code>、<code>.env</code>・<code>.env.*</code> などをそもそも追跡しない</div>
+  <div><strong>pre-commit</strong> — gitleaks（秘密情報）、detect-private-key、500KB 超のファイル禁止、<code>.env</code> 系の禁止、<code>content/</code> 配下を <code>wil.records</code> で検査、ruff</div>
+  <div><strong>build.sh の検証段</strong> — Zensical の前に <code>content/</code> 全体を <code>wil.records</code> で検査。pre-commit を通さずに入ったファイルもここで止まる</div>
+  <div><strong>Zensical <code>--strict</code></strong> — リンク切れなどの警告をエラーにする</div>
+  <div><strong>CI の権限分離</strong> — 依存を実行する build ジョブは Pages への書き込み権限を持たない</div>
+</div>
+
+<h2 id="build">6. ビルド手順 <code>build.sh</code></h2>
+<pre><code>#!/bin/sh
+set -eu
+
+# 1. 検証: 公開ディレクトリ全体
+uv run python -m wil.records
+
+# 2. 生成
+# --- pre-build generation: 後続 spec がここに生成コマンドを追加する ---
+
+# 3. ビルド
+uv run zensical build --clean --strict
+
+# 4. 付録: この解説ページ
+cp docs/implementation.html site/implementation.html</code></pre>
+<ul>
+  <li>手元と CI が<strong>同じスクリプト</strong>を使うので、「手元では通るが CI で落ちる」差が生まれにくい</li>
+  <li><code>set -eu</code> で、どれかが失敗した時点で止まる</li>
+  <li>「2. 生成」は今は空です。一覧ページなどを Markdown として生成するコマンドを後続 spec がここに足します（Zensical は任意のプラグインを使えないため、ビルド前生成で補う方針）</li>
+  <li>「4. 付録」は、このページを <code>content/</code> の許可リストを広げずに公開するための段です。<code>--clean</code> で <code>site/</code> が作り直された後にコピーします</li>
+</ul>
+
+<h2 id="deploy">7. 公開ワークフロー <code>deploy.yml</code></h2>
+<p><code>main</code> への push（または手動実行）で動きます。2 つのジョブに分かれています。</p>
+<table>
+  <thead><tr><th>ジョブ</th><th>権限</th><th>やること</th></tr></thead>
+  <tbody>
+    <tr><td><code>build</code></td><td><code>contents: read</code></td><td>checkout → uv のセットアップ → <code>uv sync --frozen</code> → <code>pytest</code> → <code>build.sh</code> → <code>site/</code> を成果物としてアップロード</td></tr>
+    <tr><td><code>deploy</code></td><td><code>pages: write</code>, <code>id-token: write</code></td><td>成果物を GitHub Pages に公開。リポジトリのコードも依存も実行しない</td></tr>
+  </tbody>
+</table>
+<h3>サプライチェーン対策</h3>
+<ul>
+  <li>ワークフロー全体の既定権限は <code>permissions: {}</code>（なし）。必要な権限だけをジョブごとに付与</li>
+  <li>Actions はタグではなく<strong>コミット SHA で固定</strong>（タグの付け替えで中身が変わる攻撃を防ぐ）。更新は Dependabot に任せる</li>
+  <li><code>persist-credentials: false</code> で、checkout 後にトークンをディスクに残さない</li>
+  <li>uv のバージョンを固定し、<code>uv sync --frozen</code> でロックファイルどおりの依存だけを入れる。キャッシュは無効</li>
+  <li>依存を実行するジョブ（build）と、書き込み権限を持つジョブ（deploy）を分ける</li>
+  <li><code>concurrency: pages</code>・<code>cancel-in-progress: false</code> で、デプロイが途中で打ち切られない</li>
+</ul>
+
+<h2 id="tests">8. テスト</h2>
+<p><code>tests/test_records.py</code> は <code>wil.records</code> を対象にし、CI では build の前に必ず実行されます。主な観点は次のとおりです。</p>
+<table>
+  <thead><tr><th>観点</th><th>例</th></tr></thead>
+  <tbody>
+    <tr><td>正常系</td><td>正しいログの読み取り、<code>summary</code> 省略、未知キーの無視</td></tr>
+    <tr><td>ファイル名・日付・文字コード</td><td>不正なファイル名、存在しない日付、UTF-8 以外</td></tr>
+    <tr><td>frontmatter</td><td>区切りなし、YAML 不正、mapping 以外、<code>tags</code>・<code>summary</code> の型</td></tr>
+    <tr><td>見出しの分割</td><td>フェンス内の <code>#</code>、フェンスの閉じ方、閉じ <code>#</code> の除去、level 0</td></tr>
+    <tr><td>公開ファイルの検査</td><td>許可外ファイル、シンボリックリンク（実体が外・ディレクトリがリンク）、ドットファイル、削除済み</td></tr>
+    <tr><td>CLI</td><td>終了コード、引数なしで全体検査、<code>content/</code> がないと失敗、実際の <code>content/</code> が通ること</td></tr>
+  </tbody>
+</table>
+<pre><code>uv run pytest</code></pre>
+
+<h2 id="extension">9. 後続 spec の差し込み点</h2>
+<p>01 は、後続の機能が既存コードを書き換えずに乗れるよう、差し込み点を用意しています。</p>
+<table>
+  <thead><tr><th>差し込み点</th><th>使い方</th></tr></thead>
+  <tbody>
+    <tr><td><code>load_records()</code> と <code>Record</code></td><td>一覧・タイムライン・MCP などがログを読むときの唯一の入口</td></tr>
+    <tr><td><code>Record.sections</code></td><td>見出し単位で本文を扱いたい機能（知見の検索など）向け</td></tr>
+    <tr><td><code>ALLOWED_PATTERNS</code></td><td>生成ページの置き場所を許可するときに 1 行追加する</td></tr>
+    <tr><td><code>build.sh</code> の「2. 生成」</td><td>ビルド前に Markdown を生成するコマンドを追加する</td></tr>
+  </tbody>
+</table>
+
+<footer>
+  このページは <a href="https://github.com/KJMAN678/what_i_learned/blob/main/docs/implementation.html"><code>docs/implementation.html</code></a> を <code>build.sh</code> が <code>site/</code> にコピーして公開しています。コードを変えたら、このページも合わせて更新してください。
+</footer>
+
+</main>
+</body>
+</html>
